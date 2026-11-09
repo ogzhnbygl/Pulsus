@@ -258,7 +258,7 @@ export default function ReportsAndTeam() {
                                 const roleInfo = getRoleBadgeInfo(staff.pulsusRole);
                                 return (
                                     <tr key={staff.email} className="hover:bg-slate-50/80">
-                                        <td className="py-3 px-4">
+                                        <td className="py-3 px-4 whitespace-nowrap">
                                             <div className="font-bold text-slate-900">
                                                 {staff.name}
                                             </div>
@@ -266,26 +266,26 @@ export default function ReportsAndTeam() {
                                                 {staff.email}
                                             </div>
                                         </td>
-                                        <td className="py-3 px-4">
+                                        <td className="py-3 px-4 whitespace-nowrap">
                                             <div className="font-semibold text-slate-800 mb-1">
                                                 {staff.title || roleInfo.label}
                                             </div>
                                             <span
-                                                className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${roleInfo.className}`}
+                                                className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${roleInfo.className}`}
                                             >
                                                 Yetki: {roleInfo.shortLabel}
                                             </span>
                                         </td>
-                                        <td className="py-3 px-4 text-slate-600 font-medium">
+                                        <td className="py-3 px-4 text-slate-600 font-medium whitespace-nowrap">
                                             {getMemberName(staff.defaultBackupEmail, members)}
                                         </td>
-                                        <td className="py-3 px-4">
+                                        <td className="py-3 px-4 whitespace-nowrap">
                                             {staff.onLeaveToday ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                                <span className="inline-flex items-center gap-1 whitespace-nowrap px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                                                     🏖️ Circa&apos;da İzinli (Yedek Aktif)
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <span className="inline-flex items-center gap-1 whitespace-nowrap px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                                     🟢 Görevde / Müsait
                                                 </span>
                                             )}
@@ -321,7 +321,7 @@ export default function ReportsAndTeam() {
                                             {staff.sequaAssigned || 0}
                                         </td>
                                         {isVet && (
-                                            <td className="py-3 px-4 text-right">
+                                            <td className="py-3 px-4 text-right whitespace-nowrap">
                                                 <div className="inline-flex items-center justify-end gap-1.5">
                                                     <button
                                                         type="button"
@@ -329,7 +329,7 @@ export default function ReportsAndTeam() {
                                                             setEditingMember(staff);
                                                             setMemberModalOpen(true);
                                                         }}
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-colors"
+                                                        className="inline-flex items-center gap-1 whitespace-nowrap px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-colors"
                                                     >
                                                         <Edit3 size={12} />
                                                         Görev &amp; Rol Ata
