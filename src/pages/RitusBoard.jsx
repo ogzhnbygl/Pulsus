@@ -877,7 +877,7 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
     const [description, setDescription] = useState(initialTemplate?.description || '');
     const [category, setCategory] = useState(initialTemplate?.category || 'cleaning');
     const [frequency, setFrequency] = useState(initialTemplate?.frequency || 'weekly');
-    const [daysOfWeek, setDaysOfWeek] = useState(initialTemplate?.daysOfWeek || [1, 4]);
+    const [daysOfWeek, setDaysOfWeek] = useState(initialTemplate?.daysOfWeek || [1]);
     const [dayOfMonth, setDayOfMonth] = useState(initialTemplate?.dayOfMonth || 15);
     const [scheduledTime, setScheduledTime] = useState(initialTemplate?.scheduledTime || '09:00');
     const [primaryAssignee, setPrimaryAssignee] = useState(
