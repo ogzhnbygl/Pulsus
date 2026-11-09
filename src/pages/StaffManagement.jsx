@@ -6,7 +6,9 @@ import {
     Wrench,
     UserCheck,
     Check,
-    Trash2
+    Trash2,
+    Save,
+    RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, DEFAULT_STAFF_DIRECTORY } from '../utils/pulsusHelpers';
@@ -41,10 +43,12 @@ const ROLE_OPTIONS = [
 export default function StaffManagement() {
     const { user, isVet, refreshUser } = useAuth();
     const [members, setMembers] = useState(DEFAULT_STAFF_DIRECTORY);
+    const [initialMembers, setInitialMembers] = useState(DEFAULT_STAFF_DIRECTORY);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [saving, setSaving] = useState(false);
     const [savingEmail, setSavingEmail] = useState(null);
-    const [savedEmail, setSavedEmail] = useState(null);
+    const [savedBanner, setSavedBanner] = useState(false);
 
     const loadMembers = useCallback(async () => {
         setLoading(true);
@@ -52,6 +56,7 @@ export default function StaffManagement() {
             const res = await apiFetch('/api/members');
             if (res?.members) {
                 setMembers(res.members);
+                setInitialMembers(res.members);
             }
         } catch (err) {
             console.error('Personel listesi yüklenemedi:', err);
@@ -64,23 +69,35 @@ export default function StaffManagement() {
         loadMembers();
     }, [loadMembers]);
 
-    const handleQuickUpdate = async (member, updates) => {
+    const isMemberDirty = useCallback(
+        member => {
+            const orig = initialMembers.find(
+                m => String(m.email).toLowerCase() === String(member.email).toLowerCase()
+            );
+            if (!orig) return true;
+            return (
+                orig.pulsusRole !== member.pulsusRole ||
+                (orig.defaultBackupEmail || '') !== (member.defaultBackupEmail || '')
+            );
+        },
+        [initialMembers]
+    );
+
+    const dirtyMembers = members.filter(isMemberDirty);
+    const hasUnsavedChanges = dirtyMembers.length > 0;
+
+    const handleStageUpdate = (member, updates) => {
         if (!isVet) return;
         const nextRole = updates.pulsusRole ?? member.pulsusRole;
-        let nextTitle = updates.title ?? member.title;
-
-        if (updates.pulsusRole && !updates.title) {
-            const matchedRole = ROLE_OPTIONS.find(r => r.value === updates.pulsusRole);
-            if (matchedRole) {
-                nextTitle = matchedRole.defaultTitle;
-            }
-        }
+        const matchedRole = ROLE_OPTIONS.find(r => r.value === nextRole);
+        const nextTitle = matchedRole ? matchedRole.defaultTitle : member.title;
 
         const nextBackup =
             updates.defaultBackupEmail !== undefined
                 ? updates.defaultBackupEmail
                 : member.defaultBackupEmail || '';
 
+        setSavedBanner(false);
         setMembers(prev =>
             prev.map(m =>
                 m.email === member.email
@@ -93,32 +110,46 @@ export default function StaffManagement() {
                     : m
             )
         );
+    };
 
-        setSavingEmail(member.email);
-        setSavedEmail(null);
+    const handleSaveChanges = async (targetMembers = dirtyMembers) => {
+        if (!isVet || targetMembers.length === 0) return;
+        setSaving(true);
+        setSavedBanner(false);
         try {
-            await apiFetch('/api/members', {
-                method: 'PUT',
-                body: JSON.stringify({
-                    email: member.email,
-                    name: member.name,
-                    pulsusRole: nextRole,
-                    title: nextTitle,
-                    defaultBackupEmail: nextBackup || null,
-                    isActive: true
-                })
-            });
-            setSavedEmail(member.email);
-            if (refreshUser) await refreshUser();
-            setTimeout(() => {
-                setSavedEmail(prev => (prev === member.email ? null : prev));
-            }, 2000);
-        } catch (err) {
-            alert(err.message || 'Güncelleme kaydedilemedi.');
+            for (const member of targetMembers) {
+                const matchedRole = ROLE_OPTIONS.find(r => r.value === member.pulsusRole);
+                const resolvedTitle =
+                    matchedRole?.defaultTitle ||
+                    member.title ||
+                    'Hayvan Bakıcısı / Temizlik Görevlisi';
+
+                await apiFetch('/api/members', {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        email: member.email,
+                        name: member.name,
+                        pulsusRole: member.pulsusRole,
+                        title: resolvedTitle,
+                        defaultBackupEmail: member.defaultBackupEmail || null,
+                        isActive: true
+                    })
+                });
+            }
             await loadMembers();
+            if (refreshUser) await refreshUser();
+            setSavedBanner(true);
+            setTimeout(() => setSavedBanner(false), 3000);
+        } catch (err) {
+            alert(err.message || 'Değişiklikler kaydedilirken hata oluştu.');
         } finally {
-            setSavingEmail(null);
+            setSaving(false);
         }
+    };
+
+    const handleResetChanges = () => {
+        setMembers(initialMembers);
+        setSavedBanner(false);
     };
 
     const handleRemoveFromPulsus = async member => {
@@ -168,6 +199,45 @@ export default function StaffManagement() {
                         Personelin görev rollerini ve yedek sorumlularını yönetin
                     </p>
                 </div>
+
+                {isVet && (
+                    <div className="flex items-center gap-2">
+                        {savedBanner && !hasUnsavedChanges && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <Check size={14} />
+                                Değişiklikler kaydedildi
+                            </span>
+                        )}
+                        {hasUnsavedChanges && (
+                            <button
+                                type="button"
+                                disabled={saving}
+                                onClick={handleResetChanges}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50"
+                            >
+                                <RotateCcw size={14} />
+                                Vazgeç
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            disabled={!hasUnsavedChanges || saving}
+                            onClick={() => handleSaveChanges(dirtyMembers)}
+                            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                                hasUnsavedChanges
+                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                    : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                            }`}
+                        >
+                            <Save size={14} />
+                            {saving
+                                ? 'Kaydediliyor...'
+                                : hasUnsavedChanges
+                                  ? `Değişiklikleri Kaydet (${dirtyMembers.length})`
+                                  : 'Değişiklikleri Kaydet'}
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
@@ -218,8 +288,8 @@ export default function StaffManagement() {
                                 </tr>
                             ) : (
                                 filteredMembers.map(member => {
-                                    const isSaving = savingEmail === member.email;
-                                    const isSaved = savedEmail === member.email;
+                                    const isRowSaving = savingEmail === member.email || saving;
+                                    const isDirty = isMemberDirty(member);
                                     const isSelf =
                                         String(member.email).toLowerCase() ===
                                         String(user?.email || '').toLowerCase();
@@ -227,7 +297,11 @@ export default function StaffManagement() {
                                     return (
                                         <tr
                                             key={member.email}
-                                            className="hover:bg-slate-50/80 transition-colors"
+                                            className={`transition-colors ${
+                                                isDirty
+                                                    ? 'bg-indigo-50/40 hover:bg-indigo-50/60'
+                                                    : 'hover:bg-slate-50/80'
+                                            }`}
                                         >
                                             {/* User Info */}
                                             <td className="px-5 py-3.5 whitespace-nowrap">
@@ -257,10 +331,10 @@ export default function StaffManagement() {
                                                             <button
                                                                 key={opt.value}
                                                                 type="button"
-                                                                disabled={!isVet || isSaving}
+                                                                disabled={!isVet || isRowSaving}
                                                                 onClick={() => {
                                                                     if (!active) {
-                                                                        handleQuickUpdate(member, {
+                                                                        handleStageUpdate(member, {
                                                                             pulsusRole: opt.value
                                                                         });
                                                                     }
@@ -283,10 +357,10 @@ export default function StaffManagement() {
                                             {/* Yedek Sorumlu Select */}
                                             <td className="px-5 py-3.5 whitespace-nowrap">
                                                 <select
-                                                    disabled={!isVet || isSaving}
+                                                    disabled={!isVet || isRowSaving}
                                                     value={member.defaultBackupEmail || ''}
                                                     onChange={e =>
-                                                        handleQuickUpdate(member, {
+                                                        handleStageUpdate(member, {
                                                             defaultBackupEmail:
                                                                 e.target.value || null
                                                         })
@@ -310,28 +384,33 @@ export default function StaffManagement() {
                                                 </select>
                                             </td>
 
-                                            {/* Status + Remove Action */}
+                                            {/* Status + Save/Remove Action */}
                                             <td className="px-5 py-3.5 text-right whitespace-nowrap">
                                                 <div className="inline-flex items-center justify-end gap-2">
-                                                    {isSaving ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                                                            Kaydediliyor...
-                                                        </span>
-                                                    ) : isSaved ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                                                            <Check size={13} />
-                                                            Kaydedildi
-                                                        </span>
-                                                    ) : member.onLeaveToday ? (
+                                                    {isDirty && isVet && (
+                                                        <button
+                                                            type="button"
+                                                            disabled={isRowSaving}
+                                                            onClick={() =>
+                                                                handleSaveChanges([member])
+                                                            }
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700"
+                                                        >
+                                                            <Save size={12} />
+                                                            Kaydet
+                                                        </button>
+                                                    )}
+
+                                                    {member.onLeaveToday && (
                                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                                                             🏖️ İzinli
                                                         </span>
-                                                    ) : null}
+                                                    )}
 
                                                     {isVet && (
                                                         <button
                                                             type="button"
-                                                            disabled={isSelf || isSaving}
+                                                            disabled={isSelf || isRowSaving}
                                                             onClick={() =>
                                                                 handleRemoveFromPulsus(member)
                                                             }

@@ -1,6 +1,7 @@
 import { verifyUser, ensureDefaultMembers } from '../lib/auth.js';
 import clientPromise, { getDbName } from '../../lib/mongodb.js';
 import { doesLeaveMatchDateAndTime, toDateKey } from '../../lib/assignmentResolver.js';
+import { syncPendingRunsWithCircaLeaves } from '../../lib/ritusEngine.js';
 import { z } from 'zod';
 
 const memberPostOrPutSchema = z.object({
@@ -149,6 +150,34 @@ export default async function handler(req, res) {
             } else {
                 await membersCol.insertOne({ ...updateFields, createdAt: now });
             }
+
+            // Propagate role and backup changes to active templates, pending Ritus runs, and open Sequa tasks
+            await db.collection('sequa_tasks').updateMany(
+                { assignedTo: normalizedEmail, status: { $ne: 'done' } },
+                { $set: { assignedToRole: finalRole, updatedAt: now } }
+            );
+
+            if (existing && existing.defaultBackupEmail !== cleanBackup) {
+                await db.collection('ritus_templates').updateMany(
+                    {
+                        primaryAssignee: normalizedEmail,
+                        $or: [
+                            { backupAssignee: existing.defaultBackupEmail || null },
+                            { backupAssignee: null }
+                        ]
+                    },
+                    { $set: { backupAssignee: cleanBackup, updatedAt: now } }
+                );
+                await db.collection('ritus_runs').updateMany(
+                    {
+                        primaryAssignee: normalizedEmail,
+                        status: 'todo'
+                    },
+                    { $set: { backupAssignee: cleanBackup, updatedAt: now } }
+                );
+            }
+
+            await syncPendingRunsWithCircaLeaves(client, db);
 
             const saved = await membersCol.findOne({ email: normalizedEmail });
             return res.status(existing ? 200 : 201).json({ member: saved });
