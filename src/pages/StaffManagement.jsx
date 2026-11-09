@@ -384,23 +384,9 @@ export default function StaffManagement() {
                                                 </select>
                                             </td>
 
-                                            {/* Status + Save/Remove Action */}
+                                            {/* Status + Remove Action */}
                                             <td className="px-5 py-3.5 text-right whitespace-nowrap">
                                                 <div className="inline-flex items-center justify-end gap-2">
-                                                    {isDirty && isVet && (
-                                                        <button
-                                                            type="button"
-                                                            disabled={isRowSaving}
-                                                            onClick={() =>
-                                                                handleSaveChanges([member])
-                                                            }
-                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700"
-                                                        >
-                                                            <Save size={12} />
-                                                            Kaydet
-                                                        </button>
-                                                    )}
-
                                                     {member.onLeaveToday && (
                                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                                                             🏖️ İzinli
