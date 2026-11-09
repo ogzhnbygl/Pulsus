@@ -28,14 +28,17 @@ export function CreateSequaModal({
     user,
     members = DEFAULT_STAFF_DIRECTORY,
     sourceRitusRun = null,
-    initialTaskType = null
+    initialTaskType = null,
+    initialTask = null
 }) {
+    const isEdit = Boolean(initialTask?._id);
     const userRole = user?.pulsusRole || 'caretaker';
     const isVet = userRole === 'vet' || user?.role === 'admin';
     const isTechnician = userRole === 'technician';
     const isCaretaker = !isVet && !isTechnician;
 
     const defaultType =
+        initialTask?.taskType ||
         initialTaskType ||
         (isCaretaker ? 'issue_report' : sourceRitusRun ? 'issue_report' : 'task');
 
@@ -46,13 +49,14 @@ export function CreateSequaModal({
 
     const [taskType, setTaskType] = useState(defaultType);
     const [title, setTitle] = useState(
-        sourceRitusRun ? `[Rutin Bildirimi] ${sourceRitusRun.title}` : ''
+        initialTask?.title || (sourceRitusRun ? `[Rutin Bildirimi] ${sourceRitusRun.title}` : '')
     );
-    const [description, setDescription] = useState('');
+    const [description, setDescription] = useState(initialTask?.description || '');
     const [priority, setPriority] = useState(
-        defaultType === 'vet_request' ? 'high' : 'medium'
+        initialTask?.priority || (defaultType === 'vet_request' ? 'high' : 'medium')
     );
     const [assignedTo, setAssignedTo] = useState(() => {
+        if (initialTask?.assignedTo) return initialTask.assignedTo;
         if (defaultType === 'vet_request') return VET_EMAIL;
         if (isCaretaker) {
             const firstTech = supervisorsOnly.find(m => m.pulsusRole === 'technician');
@@ -61,11 +65,13 @@ export function CreateSequaModal({
         const firstCaretaker = staffList.find(m => m.pulsusRole === 'caretaker');
         return firstCaretaker?.email || staffList[0]?.email || VET_EMAIL;
     });
-    const [externalUnit, setExternalUnit] = useState(UNIVERSITY_EXTERNAL_UNITS[0]);
-    const [externalTicketNo, setExternalTicketNo] = useState('');
-    const [dueDate, setDueDate] = useState('');
+    const [externalUnit, setExternalUnit] = useState(
+        initialTask?.externalUnit || UNIVERSITY_EXTERNAL_UNITS[0]
+    );
+    const [externalTicketNo, setExternalTicketNo] = useState(initialTask?.externalTicketNo || '');
+    const [dueDate, setDueDate] = useState(initialTask?.dueDate || '');
     const [contextLabel, setContextLabel] = useState(
-        sourceRitusRun?.contextRef?.label || ''
+        initialTask?.contextRef?.label || sourceRitusRun?.contextRef?.label || ''
     );
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
@@ -97,6 +103,7 @@ export function CreateSequaModal({
         setSubmitting(true);
         try {
             const payload = {
+                ...(isEdit ? { id: String(initialTask._id), action: 'edit_task' } : {}),
                 title: title.trim(),
                 description: description.trim(),
                 taskType: isCaretaker ? 'issue_report' : taskType,
@@ -108,12 +115,12 @@ export function CreateSequaModal({
                         ? externalTicketNo.trim()
                         : null,
                 dueDate: dueDate || null,
-                sourceRitusRunId: sourceRitusRun?._id ? String(sourceRitusRun._id) : null,
+                sourceRitusRunId: sourceRitusRun?._id ? String(sourceRitusRun._id) : initialTask?.sourceRitusRunId || null,
                 contextRef: contextLabel.trim()
                     ? {
-                          module: sourceRitusRun?.contextRef?.module || 'Locus',
-                          entityType: sourceRitusRun?.contextRef?.entityType || 'location',
-                          entityId: sourceRitusRun?.contextRef?.entityId || null,
+                          module: sourceRitusRun?.contextRef?.module || initialTask?.contextRef?.module || 'Locus',
+                          entityType: sourceRitusRun?.contextRef?.entityType || initialTask?.contextRef?.entityType || 'location',
+                          entityId: sourceRitusRun?.contextRef?.entityId || initialTask?.contextRef?.entityId || null,
                           label: contextLabel.trim()
                       }
                     : sourceRitusRun?.contextRef || null
@@ -121,7 +128,7 @@ export function CreateSequaModal({
             await onSubmit(payload);
             onClose();
         } catch (err) {
-            setError(err.message || 'Kayıt oluşturulurken hata oluştu.');
+            setError(err.message || 'Kayıt kaydedilirken hata oluştu.');
         } finally {
             setSubmitting(false);
         }
@@ -134,7 +141,12 @@ export function CreateSequaModal({
                 <div className="shrink-0 px-5 py-3.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
                     <div>
                         <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
-                            {isCaretaker ? (
+                            {isEdit ? (
+                                <>
+                                    <ClipboardList size={18} className="text-indigo-400" />
+                                    Sequa Görevini Düzenle
+                                </>
+                            ) : isCaretaker ? (
                                 <>
                                     <AlertTriangle size={18} className="text-amber-400" />
                                     Problem / Arıza Bildir (Sequa)

@@ -9,7 +9,8 @@ import {
     RotateCcw,
     SlidersHorizontal,
     Link2,
-    Trash2
+    Trash2,
+    Edit3
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -33,6 +34,7 @@ export default function SequaBoard() {
 
     // Modals
     const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState(null);
     const [initialModalType, setInitialModalType] = useState(null);
     const [convertModal, setConvertModal] = useState({ open: false, task: null });
 
@@ -147,6 +149,7 @@ export default function SequaBoard() {
                         <button
                             type="button"
                             onClick={() => {
+                                setEditingTask(null);
                                 setInitialModalType('issue_report');
                                 setCreateModalOpen(true);
                             }}
@@ -161,6 +164,7 @@ export default function SequaBoard() {
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        setEditingTask(null);
                                         setInitialModalType('vet_request');
                                         setCreateModalOpen(true);
                                     }}
@@ -174,6 +178,7 @@ export default function SequaBoard() {
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        setEditingTask(null);
                                         setInitialModalType('external');
                                         setCreateModalOpen(true);
                                     }}
@@ -186,6 +191,7 @@ export default function SequaBoard() {
                             <button
                                 type="button"
                                 onClick={() => {
+                                    setEditingTask(null);
                                     setInitialModalType('task');
                                     setCreateModalOpen(true);
                                 }}
@@ -418,15 +424,43 @@ export default function SequaBoard() {
                                                                 </button>
                                                             )}
 
-                                                        {(isVet || isTechnician) && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDeleteTask(task._id)}
-                                                                className="p-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 ml-auto"
-                                                                title="Görevi sil"
-                                                            >
-                                                                <Trash2 size={12} />
-                                                            </button>
+                                                        {(isVet ||
+                                                            isTechnician ||
+                                                            String(
+                                                                task.createdBy || ''
+                                                            ).toLowerCase() ===
+                                                                String(
+                                                                    user?.email || ''
+                                                                ).toLowerCase()) && (
+                                                            <div className="flex items-center gap-1 ml-auto">
+                                                                {(task.status === 'todo' ||
+                                                                    task.status === 'reported' ||
+                                                                    isVet) && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setEditingTask(task);
+                                                                            setCreateModalOpen(true);
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold"
+                                                                        title="Görevi düzenle"
+                                                                    >
+                                                                        <Edit3 size={11} />
+                                                                        Düzenle
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        handleDeleteTask(task._id)
+                                                                    }
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold"
+                                                                    title="Görevi sil"
+                                                                >
+                                                                    <Trash2 size={11} />
+                                                                    Sil
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 )}
@@ -440,20 +474,26 @@ export default function SequaBoard() {
                 </div>
             )}
 
-            <CreateSequaModal
-                isOpen={createModalOpen}
-                onClose={() => setCreateModalOpen(false)}
-                user={user}
-                members={members}
-                initialTaskType={initialModalType}
-                onSubmit={async payload => {
-                    await apiFetch('/api/sequa/tasks', {
-                        method: 'POST',
-                        body: JSON.stringify(payload)
-                    });
-                    await loadData();
-                }}
-            />
+            {createModalOpen && (
+                <CreateSequaModal
+                    isOpen={createModalOpen}
+                    onClose={() => {
+                        setCreateModalOpen(false);
+                        setEditingTask(null);
+                    }}
+                    user={user}
+                    members={members}
+                    initialTaskType={initialModalType}
+                    initialTask={editingTask}
+                    onSubmit={async payload => {
+                        await apiFetch('/api/sequa/tasks', {
+                            method: editingTask ? 'PATCH' : 'POST',
+                            body: JSON.stringify(payload)
+                        });
+                        await loadData();
+                    }}
+                />
+            )}
 
             <ConvertIssueModal
                 isOpen={convertModal.open}

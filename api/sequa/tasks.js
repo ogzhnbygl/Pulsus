@@ -43,15 +43,25 @@ const patchSequaSchema = z.object({
             'request_revision',
             'approve',
             'add_note',
-            'reassign'
+            'reassign',
+            'edit_task'
         ])
         .default('move_status'),
+    title: z.string().min(2).max(180).optional(),
+    description: z.string().max(1500).optional(),
     status: z.enum(['reported', 'todo', 'in_progress', 'review', 'done']).optional(),
     taskType: z.enum(['task', 'vet_request', 'issue_report', 'external']).optional(),
     assignedTo: z.string().email().nullable().optional().or(z.literal('')),
     reviewerEmail: z.string().email().nullable().optional().or(z.literal('')),
     externalUnit: z.string().max(150).nullable().optional(),
     externalTicketNo: z.string().max(80).nullable().optional(),
+    dueDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Bitiş tarihi YYYY-MM-DD formatında olmalıdır.')
+        .nullable()
+        .optional()
+        .or(z.literal('')),
+    contextRef: contextRefSchema,
     priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
     note: z.string().max(1000).optional().default('')
 });
@@ -519,7 +529,60 @@ export default async function handler(req, res) {
                 return res.status(200).json({ task: updated });
             }
 
-            // 5. move_status or add_note
+            // 5. edit_task (Edit task fields when in 'reported' / 'todo' or by Vet)
+            if (data.action === 'edit_task') {
+                const isVet = userRole === 'vet';
+                const isTech = userRole === 'technician';
+                const isCreator = existing.createdBy?.toLowerCase() === userEmail;
+
+                if (!isVet && !isTech && !isCreator) {
+                    return res.status(403).json({
+                        error: 'Bu görevi düzenleme yetkiniz bulunmuyor.'
+                    });
+                }
+
+                const editFields = { updatedAt: now };
+                if (data.title !== undefined) editFields.title = data.title.trim();
+                if (data.description !== undefined) editFields.description = data.description.trim();
+                if (data.taskType !== undefined) editFields.taskType = data.taskType;
+                if (data.priority !== undefined) editFields.priority = data.priority;
+                if (data.assignedTo) {
+                    editFields.assignedTo = data.assignedTo.trim().toLowerCase();
+                }
+                if (data.externalUnit !== undefined) {
+                    editFields.externalUnit = data.externalUnit ? data.externalUnit.trim() : null;
+                }
+                if (data.externalTicketNo !== undefined) {
+                    editFields.externalTicketNo = data.externalTicketNo ? data.externalTicketNo.trim() : null;
+                }
+                if (data.dueDate !== undefined) {
+                    editFields.dueDate = data.dueDate || null;
+                }
+                if (data.contextRef !== undefined) {
+                    editFields.contextRef = data.contextRef;
+                }
+
+                const logEntry = {
+                    action: 'edit_task',
+                    by: userEmail,
+                    byName: user.name,
+                    at: now,
+                    note: data.note || 'Görev detayları düzenlendi.'
+                };
+
+                await sequaCol.updateOne(
+                    { _id: taskObjectId },
+                    {
+                        $set: editFields,
+                        $push: { activityLog: logEntry }
+                    }
+                );
+
+                const updated = await sequaCol.findOne({ _id: taskObjectId });
+                return res.status(200).json({ task: updated });
+            }
+
+            // 6. move_status or add_note
             const setFields = { updatedAt: now };
             if (data.status) {
                 setFields.status = data.status;
