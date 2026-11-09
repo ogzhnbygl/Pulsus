@@ -6,6 +6,7 @@ import PulseDashboard from './pages/PulseDashboard';
 import RitusBoard from './pages/RitusBoard';
 import SequaBoard from './pages/SequaBoard';
 import ReportsAndTeam from './pages/ReportsAndTeam';
+import StaffManagement from './pages/StaffManagement';
 
 export default function App() {
     return (
@@ -18,6 +19,7 @@ export default function App() {
                         <Route path="/ritus" element={<RitusBoard />} />
                         <Route path="/sequa" element={<SequaBoard />} />
                         <Route path="/reports" element={<ReportsAndTeam />} />
+                        <Route path="/staff" element={<StaffManagement />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </main>

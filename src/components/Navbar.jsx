@@ -5,6 +5,7 @@ import {
     CalendarClock,
     Zap,
     BarChart3,
+    Users,
     LayoutGrid,
     LogOut,
     Stethoscope,
@@ -48,7 +49,18 @@ export default function Navbar() {
             subtitle: 'Performans & Circa İzin Durumu',
             icon: BarChart3,
             activeColor: 'border-violet-600 text-violet-700 bg-violet-50/70'
-        }
+        },
+        ...(isVet
+            ? [
+                  {
+                      to: '/staff',
+                      label: 'Personel & Rol Yönetimi',
+                      subtitle: 'Yetki, Görev & Yedek Ayarları',
+                      icon: Users,
+                      activeColor: 'border-slate-900 text-slate-900 bg-slate-100'
+                  }
+              ]
+            : [])
     ];
 
     return (
@@ -101,11 +113,11 @@ export default function Navbar() {
                                 </span>
                                 <button
                                     type="button"
-                                    onClick={() => navigate('/reports?manage=roles')}
+                                    onClick={() => navigate(isVet ? '/staff' : '/reports')}
                                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-opacity hover:opacity-85 ${roleBadge.className}`}
                                     title={
                                         isVet
-                                            ? 'Personel görev ve rollerini yönetmek için tıklayın'
+                                            ? 'Personel & Rol Yönetimi sayfasını aç'
                                             : 'Ekip ve görev listesini görüntüle'
                                     }
                                 >
