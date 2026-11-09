@@ -216,9 +216,6 @@ export default function RitusBoard() {
                         <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-indigo-600 text-white">
                             RITUS MOTORU
                         </span>
-                        <span className="text-xs font-semibold text-slate-500">
-                            Cuma 16:30 Otomatik Paket Dağıtımı &amp; Circa Yedek Zinciri
-                        </span>
                     </div>
                     <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
                         Periyodik Laboratuvar Rutinleri ve Denetim Akışı
