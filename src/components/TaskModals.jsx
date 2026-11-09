@@ -271,32 +271,6 @@ export function CreateSequaModal({
                         </div>
                     )}
 
-                    {/* Quick helper template when Technician selects vet_request */}
-                    {taskType === 'vet_request' && (
-                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1.5">
-                            <div className="font-bold flex items-center gap-1.5">
-                                <Stethoscope size={14} className="text-rose-600" />
-                                Sorumlu Veteriner Hekime (Oğuzhan Baygül) Doğrudan Muayene / Karar Çağrısı
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (!title) {
-                                        setTitle('Kafes Değişimi Sırasında Klinik Muayene Talebi');
-                                    }
-                                    if (!description) {
-                                        setDescription(
-                                            'X kafesinde değişim yaparken bir hayvanın genel durumu kötü (letarji / piloereksiyon) gözlemlendi, hocam gelip bakar mısınız?'
-                                        );
-                                    }
-                                }}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white border border-rose-300 text-rose-700 font-semibold hover:bg-rose-100 transition-colors"
-                            >
-                                + Örnek Muayene Metnini Doldur
-                            </button>
-                        </div>
-                    )}
-
                     <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                             Başlık *
