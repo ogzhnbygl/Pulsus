@@ -180,6 +180,7 @@ export const AuthProvider = ({ children }) => {
                 user,
                 loading,
                 logout,
+                refreshUser: checkAuth,
                 isVet,
                 isTechnician,
                 isCaretaker,

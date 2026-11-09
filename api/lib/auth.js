@@ -83,11 +83,12 @@ export function resolveDefaultMemberProfile(email, name = null, isAdmin = false)
     };
 }
 
-export async function ensureDefaultMembers(db) {
+export async function ensureDefaultMembers(db, client = null) {
     const membersCol = db.collection('members');
     const count = await membersCol.countDocuments();
+    const now = new Date();
+
     if (count === 0) {
-        const now = new Date();
         await membersCol.insertMany(
             DEFAULT_LAB_MEMBERS.map(m => ({
                 ...m,
@@ -95,6 +96,39 @@ export async function ensureDefaultMembers(db) {
                 updatedAt: now
             }))
         );
+    }
+
+    // Also sync any user from Apex_db.users who has 'pulsus' access or 'admin' role
+    if (client) {
+        try {
+            const apexDb = client.db(getDbName('Apex_db'));
+            const apexUsers = await apexDb
+                .collection('users')
+                .find({
+                    $or: [{ role: 'admin' }, { apps: 'pulsus' }]
+                })
+                .toArray();
+
+            for (const u of apexUsers) {
+                const emailLower = String(u.email || '').trim().toLowerCase();
+                if (!emailLower) continue;
+                const exists = await membersCol.findOne({ email: emailLower });
+                if (!exists) {
+                    const profile = resolveDefaultMemberProfile(
+                        emailLower,
+                        u.name,
+                        u.role === 'admin'
+                    );
+                    await membersCol.insertOne({
+                        ...profile,
+                        createdAt: now,
+                        updatedAt: now
+                    });
+                }
+            }
+        } catch {
+            // Ignore cross-db sync errors if any
+        }
     }
 }
 
@@ -106,7 +140,7 @@ export async function verifyUser(req) {
 
     const client = await clientPromise;
     const db = client.db(getDbName('Pulsus_db'));
-    await ensureDefaultMembers(db);
+    await ensureDefaultMembers(db, client);
 
     const membersCol = db.collection('members');
     const normalizedEmail = user.email.toLowerCase();
@@ -126,10 +160,14 @@ export async function verifyUser(req) {
         member = newDoc;
     }
 
-    const pulsusRole = isAdmin ? 'vet' : (member.pulsusRole || 'caretaker');
-    const title = isAdmin
-        ? (member.title || 'Sorumlu Veteriner Hekim')
-        : (member.title || 'Hayvan Bakıcısı / Temizlik Görevlisi');
+    const pulsusRole = member.pulsusRole || (isAdmin ? 'vet' : 'caretaker');
+    const title =
+        member.title ||
+        (pulsusRole === 'vet'
+            ? 'Sorumlu Veteriner Hekim'
+            : pulsusRole === 'technician'
+              ? 'Veteriner Sağlık Teknikeri'
+              : 'Hayvan Bakıcısı / Temizlik Görevlisi');
 
     return {
         ...user,

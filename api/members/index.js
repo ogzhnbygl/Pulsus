@@ -1,4 +1,4 @@
-import { verifyUser, ensureDefaultMembers, VET_EMAIL } from '../lib/auth.js';
+import { verifyUser, ensureDefaultMembers } from '../lib/auth.js';
 import clientPromise, { getDbName } from '../../lib/mongodb.js';
 import { doesLeaveMatchDateAndTime, toDateKey } from '../../lib/assignmentResolver.js';
 import { z } from 'zod';
@@ -59,7 +59,7 @@ export default async function handler(req, res) {
 
     const client = await clientPromise;
     const db = client.db(getDbName('Pulsus_db'));
-    await ensureDefaultMembers(db);
+    await ensureDefaultMembers(db, client);
     const membersCol = db.collection('members');
 
     if (req.method === 'GET') {
@@ -110,9 +110,9 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST' || req.method === 'PUT') {
-        if (user.pulsusRole !== 'vet') {
+        if (user.pulsusRole !== 'vet' && user.role !== 'admin') {
             return res.status(403).json({
-                error: 'Personel rol ve yedek yapılandırmasını yalnızca Sorumlu Veteriner Hekim değiştirebilir.'
+                error: 'Personel rol ve yedek yapılandırmasını yalnızca Yönetici / Sorumlu Veteriner Hekim değiştirebilir.'
             });
         }
 
@@ -127,7 +127,7 @@ export default async function handler(req, res) {
             const data = parsed.data;
             const normalizedEmail = data.email.trim().toLowerCase();
             const cleanBackup = data.defaultBackupEmail ? data.defaultBackupEmail.trim().toLowerCase() : null;
-            const finalRole = normalizedEmail === VET_EMAIL ? 'vet' : data.pulsusRole;
+            const finalRole = data.pulsusRole;
             const now = new Date();
 
             const existing = await membersCol.findOne({ email: normalizedEmail });
@@ -155,6 +155,23 @@ export default async function handler(req, res) {
         }
     }
 
-    res.setHeader('Allow', ['GET', 'POST', 'PUT']);
+    if (req.method === 'DELETE') {
+        if (user.pulsusRole !== 'vet' && user.role !== 'admin') {
+            return res.status(403).json({
+                error: 'Personel silme yetkisi yalnızca Yönetici / Sorumlu Veteriner Hekime aittir.'
+            });
+        }
+        const emailParam = String(req.query?.email || '').trim().toLowerCase();
+        if (!emailParam) {
+            return res.status(400).json({ error: 'Silinecek personelin e-posta adresi gereklidir.' });
+        }
+        if (emailParam === user.email.toLowerCase()) {
+            return res.status(400).json({ error: 'Kendi aktif personel kaydınızı silemezsiniz.' });
+        }
+        await membersCol.deleteOne({ email: emailParam });
+        return res.status(200).json({ ok: true });
+    }
+
+    res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
 }

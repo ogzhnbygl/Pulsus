@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
     Activity,
     CalendarClock,
@@ -9,13 +9,15 @@ import {
     LogOut,
     Stethoscope,
     Wrench,
-    UserCheck
+    UserCheck,
+    Settings
 } from 'lucide-react';
 import { useAuth, getApexUrl, isPreviewHost } from '../context/AuthContext';
 import { getRoleBadgeInfo } from '../utils/pulsusHelpers';
 
 export default function Navbar() {
     const { user, logout, isVet, isTechnician, switchDevProfile, devProfiles } = useAuth();
+    const navigate = useNavigate();
     const roleBadge = getRoleBadgeInfo(user?.pulsusRole);
 
     const navItems = [
@@ -101,17 +103,19 @@ export default function Navbar() {
                         )}
 
                         {user && (
-                            <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5">
-                                <div className="hidden sm:flex flex-col items-end leading-tight">
-                                    <span className="text-xs sm:text-sm font-bold text-slate-800">
-                                        {user.name || user.email}
-                                    </span>
-                                    <span className="text-[11px] text-slate-500">
-                                        {user.title || roleBadge.label}
-                                    </span>
-                                </div>
-                                <span
-                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${roleBadge.className}`}
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5">
+                                <span className="hidden sm:inline text-xs sm:text-sm font-bold text-slate-800">
+                                    {user.name || user.email}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/reports?manage=roles')}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-opacity hover:opacity-85 ${roleBadge.className}`}
+                                    title={
+                                        isVet
+                                            ? 'Personel görev ve rollerini yönetmek için tıklayın'
+                                            : 'Ekip ve görev listesini görüntüle'
+                                    }
                                 >
                                     {isVet ? (
                                         <Stethoscope size={13} />
@@ -120,9 +124,12 @@ export default function Navbar() {
                                     ) : (
                                         <UserCheck size={13} />
                                     )}
-                                    <span className="hidden md:inline">{roleBadge.label}</span>
+                                    <span className="hidden md:inline">
+                                        {user.title || roleBadge.label}
+                                    </span>
                                     <span className="md:hidden">{roleBadge.shortLabel}</span>
-                                </span>
+                                    {isVet && <Settings size={12} className="ml-0.5 opacity-75" />}
+                                </button>
                             </div>
                         )}
 

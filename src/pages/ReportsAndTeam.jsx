@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-    BarChart3,
     Download,
     Palmtree,
     RotateCcw,
     ShieldAlert,
     Building2,
-    CheckCircle2,
-    Users
+    Users,
+    Edit3,
+    UserPlus,
+    X,
+    Trash2
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import {
     apiFetch,
     DEFAULT_STAFF_DIRECTORY,
@@ -16,10 +20,23 @@ import {
     getMemberName
 } from '../utils/pulsusHelpers';
 
+const PRESET_TITLES = [
+    { label: 'Sorumlu Veteriner Hekim', role: 'vet' },
+    { label: 'Veteriner Sağlık Teknikeri', role: 'technician' },
+    { label: 'Laboratuvar Teknikeri', role: 'technician' },
+    { label: 'Hayvan Bakıcısı / Temizlik Görevlisi', role: 'caretaker' }
+];
+
 export default function ReportsAndTeam() {
+    const { user, isVet, refreshUser } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [report, setReport] = useState(null);
     const [members, setMembers] = useState(DEFAULT_STAFF_DIRECTORY);
     const [loading, setLoading] = useState(true);
+
+    // Role & Duty Management Modal State
+    const [memberModalOpen, setMemberModalOpen] = useState(false);
+    const [editingMember, setEditingMember] = useState(null);
 
     const loadReport = useCallback(async () => {
         setLoading(true);
@@ -42,6 +59,8 @@ export default function ReportsAndTeam() {
     useEffect(() => {
         loadReport();
     }, [loadReport]);
+
+    const highlightRoles = searchParams.get('manage') === 'roles';
 
     const exportJson = () => {
         if (!report) return;
@@ -93,6 +112,22 @@ export default function ReportsAndTeam() {
         URL.revokeObjectURL(url);
     };
 
+    const handleDeleteMember = async email => {
+        if (String(email).toLowerCase() === String(user?.email || '').toLowerCase()) {
+            alert('Kendi aktif personel kaydınızı silemezsiniz.');
+            return;
+        }
+        if (!window.confirm(`${email} personel kaydını silmek istediğinize emin misiniz?`)) return;
+        try {
+            await apiFetch(`/api/members?email=${encodeURIComponent(email)}`, {
+                method: 'DELETE'
+            });
+            await loadReport();
+        } catch (err) {
+            alert(err.message || 'Personel silinemedi.');
+        }
+    };
+
     if (loading) {
         return (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center text-xs text-slate-400">
@@ -106,6 +141,18 @@ export default function ReportsAndTeam() {
     const revisions = report?.recentRevisionsAndEscalations || [];
     const externalTasks = report?.externalTasks || [];
 
+    // Merge members list with staffMetrics so any newly added member is always shown
+    const combinedStaffRows = members.map(m => {
+        const metric =
+            staffMetrics.find(
+                s => String(s.email).toLowerCase() === String(m.email).toLowerCase()
+            ) || {};
+        return {
+            ...metric,
+            ...m
+        };
+    });
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
             {/* Header & Export */}
@@ -113,18 +160,31 @@ export default function ReportsAndTeam() {
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-violet-600 text-white">
-                            ANALİTİK &amp; DENETİM
+                            EKİP &amp; PERFORMANS
                         </span>
                         <span className="text-xs font-semibold text-slate-500">
-                            Ritus + Sequa + Circa İzin Devir Raporu
+                            Personel Görev Tanımları, İzin Yedekleri ve Denetim Raporu
                         </span>
                     </div>
                     <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
-                        Personel Performansı, Tekrarlatılan İşler ve Ekip İzin Durumu
+                        Personel Performansı, Tekrarlatılan İşler ve Ekip Görev Yönetimi
                     </h1>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    {isVet && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingMember(null);
+                                setMemberModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white shadow-xs"
+                        >
+                            <UserPlus size={14} />
+                            Personel / Görev Tanımla
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={exportCsv}
@@ -141,6 +201,160 @@ export default function ReportsAndTeam() {
                         <Download size={14} />
                         JSON Raporu
                     </button>
+                </div>
+            </div>
+
+            {/* Staff Directory, Role/Duty Assignment & Performance Table */}
+            <div
+                className={`bg-white rounded-2xl border shadow-xs overflow-hidden transition-all ${
+                    highlightRoles
+                        ? 'border-indigo-500 ring-2 ring-indigo-500/20'
+                        : 'border-slate-200'
+                }`}
+            >
+                <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                        <Users size={18} className="text-indigo-600 shrink-0" />
+                        <div>
+                            <h2 className="text-sm font-extrabold text-slate-900">
+                                Laboratuvar Ekibi, Canlı Circa İzin Durumu ve Performans Matrisi
+                            </h2>
+                            <p className="text-xs text-slate-500">
+                                {isVet
+                                    ? 'Yönetici olarak her personelin sistemdeki yetki rolünü (Hekim / Tekniker / Bakıcı), görev ünvanını ve Circa izin yedeğini sağdaki "Görev & Rol Ata" butonuyla değiştirebilirsiniz.'
+                                    : 'Kişi bazlı görev ünvanları, tamamlanan rutinler, tekrarlatma sayıları ve yedek devir istatistikleri'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {highlightRoles && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchParams({})}
+                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 self-end sm:self-auto"
+                        >
+                            Vurguyu Kapat
+                        </button>
+                    )}
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
+                                <th className="py-3 px-4">Personel</th>
+                                <th className="py-3 px-4">Görev Ünvanı &amp; Yetki Rolü</th>
+                                <th className="py-3 px-4">Varsayılan Yedek</th>
+                                <th className="py-3 px-4">Circa İzin Durumu</th>
+                                <th className="py-3 px-4 text-center">Ritus (Biten/Toplam)</th>
+                                <th className="py-3 px-4 text-center">Tekrarlatılan</th>
+                                <th className="py-3 px-4 text-center">Eskalasyon</th>
+                                <th className="py-3 px-4 text-center">Sequa (Biten/Toplam)</th>
+                                {isVet && <th className="py-3 px-4 text-right">Görev / Rol Ayarı</th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {combinedStaffRows.map(staff => {
+                                const roleInfo = getRoleBadgeInfo(staff.pulsusRole);
+                                return (
+                                    <tr key={staff.email} className="hover:bg-slate-50/80">
+                                        <td className="py-3 px-4">
+                                            <div className="font-bold text-slate-900">
+                                                {staff.name}
+                                            </div>
+                                            <div className="text-[11px] text-slate-400">
+                                                {staff.email}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <div className="font-semibold text-slate-800 mb-1">
+                                                {staff.title || roleInfo.label}
+                                            </div>
+                                            <span
+                                                className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${roleInfo.className}`}
+                                            >
+                                                Yetki: {roleInfo.shortLabel}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-slate-600 font-medium">
+                                            {getMemberName(staff.defaultBackupEmail, members)}
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            {staff.onLeaveToday ? (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                                    🏖️ Circa&apos;da İzinli (Yedek Aktif)
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    🟢 Görevde / Müsait
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="py-3 px-4 text-center font-bold text-slate-800">
+                                            {staff.ritusCompleted || 0} /{' '}
+                                            {staff.totalRitusAssigned || 0}
+                                        </td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span
+                                                className={`px-2 py-0.5 rounded-full font-extrabold ${
+                                                    (staff.totalRevisionsReceived || 0) > 0
+                                                        ? 'bg-amber-100 text-amber-900'
+                                                        : 'bg-slate-100 text-slate-500'
+                                                }`}
+                                            >
+                                                {staff.totalRevisionsReceived || 0}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span
+                                                className={`px-2 py-0.5 rounded-full font-extrabold ${
+                                                    (staff.escalatedCount || 0) > 0
+                                                        ? 'bg-rose-100 text-rose-900'
+                                                        : 'bg-slate-100 text-slate-500'
+                                                }`}
+                                            >
+                                                {staff.escalatedCount || 0}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-center font-bold text-slate-800">
+                                            {staff.sequaCompleted || 0} /{' '}
+                                            {staff.sequaAssigned || 0}
+                                        </td>
+                                        {isVet && (
+                                            <td className="py-3 px-4 text-right">
+                                                <div className="inline-flex items-center justify-end gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setEditingMember(staff);
+                                                            setMemberModalOpen(true);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-colors"
+                                                    >
+                                                        <Edit3 size={12} />
+                                                        Görev &amp; Rol Ata
+                                                    </button>
+                                                    {String(staff.email).toLowerCase() !==
+                                                        String(user?.email || '').toLowerCase() && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleDeleteMember(staff.email)
+                                                            }
+                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                                            title="Personel kaydını kaldır"
+                                                        >
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -219,117 +433,6 @@ export default function ReportsAndTeam() {
                 </div>
             </div>
 
-            {/* Staff Directory, Live Circa Leave Status & Performance Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Users size={18} className="text-indigo-600" />
-                        <div>
-                            <h2 className="text-sm font-extrabold text-slate-900">
-                                Laboratuvar Ekibi, Canlı Circa İzin Durumu ve Performans Matrisi
-                            </h2>
-                            <p className="text-xs text-slate-500">
-                                Kişi bazlı tamamlanan rutinler, tekrarlatma (revizyon) sayıları ve yedek devir istatistikleri
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
-                                <th className="py-3 px-4">Personel</th>
-                                <th className="py-3 px-4">Operasyonel Rol</th>
-                                <th className="py-3 px-4">Varsayılan Yedek</th>
-                                <th className="py-3 px-4">Circa İzin Durumu</th>
-                                <th className="py-3 px-4 text-center">Ritus (Biten/Toplam)</th>
-                                <th className="py-3 px-4 text-center">Tekrarlatılan (Revizyon)</th>
-                                <th className="py-3 px-4 text-center">Eskalasyon</th>
-                                <th className="py-3 px-4 text-center">Sequa (Biten/Toplam)</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {staffMetrics.map(staff => {
-                                const roleInfo = getRoleBadgeInfo(staff.pulsusRole);
-                                const memberDoc =
-                                    members.find(
-                                        m =>
-                                            String(m.email).toLowerCase() ===
-                                            String(staff.email).toLowerCase()
-                                    ) || staff;
-                                return (
-                                    <tr key={staff.email} className="hover:bg-slate-50/80">
-                                        <td className="py-3 px-4">
-                                            <div className="font-bold text-slate-900">
-                                                {staff.name}
-                                            </div>
-                                            <div className="text-[11px] text-slate-400">
-                                                {staff.email}
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4">
-                                            <span
-                                                className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold border ${roleInfo.className}`}
-                                            >
-                                                {roleInfo.shortLabel}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4 text-slate-600 font-medium">
-                                            {getMemberName(
-                                                memberDoc.defaultBackupEmail,
-                                                members
-                                            )}
-                                        </td>
-                                        <td className="py-3 px-4">
-                                            {memberDoc.onLeaveToday ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                                                    🏖️ Circa&apos;da İzinli (Yedek Aktif)
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                    🟢 Görevde / Müsait
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="py-3 px-4 text-center font-bold text-slate-800">
-                                            {staff.ritusCompleted || 0} /{' '}
-                                            {staff.totalRitusAssigned || 0}
-                                        </td>
-                                        <td className="py-3 px-4 text-center">
-                                            <span
-                                                className={`px-2 py-0.5 rounded-full font-extrabold ${
-                                                    (staff.totalRevisionsReceived || 0) > 0
-                                                        ? 'bg-amber-100 text-amber-900'
-                                                        : 'bg-slate-100 text-slate-500'
-                                                }`}
-                                            >
-                                                {staff.totalRevisionsReceived || 0}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4 text-center">
-                                            <span
-                                                className={`px-2 py-0.5 rounded-full font-extrabold ${
-                                                    (staff.escalatedCount || 0) > 0
-                                                        ? 'bg-rose-100 text-rose-900'
-                                                        : 'bg-slate-100 text-slate-500'
-                                                }`}
-                                            >
-                                                {staff.escalatedCount || 0}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4 text-center font-bold text-slate-800">
-                                            {staff.sequaCompleted || 0} /{' '}
-                                            {staff.sequaAssigned || 0}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             {/* Revisions & Escalations Audit History */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
@@ -403,6 +506,279 @@ export default function ReportsAndTeam() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {memberModalOpen && (
+                <MemberRoleModal
+                    isOpen={memberModalOpen}
+                    onClose={() => setMemberModalOpen(false)}
+                    initialMember={editingMember}
+                    members={members}
+                    onSaved={async () => {
+                        setMemberModalOpen(false);
+                        await loadReport();
+                        if (refreshUser) await refreshUser();
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+function MemberRoleModal({ isOpen, onClose, initialMember, members, onSaved }) {
+    const isEdit = Boolean(initialMember?.email);
+    const [email, setEmail] = useState(initialMember?.email || '');
+    const [name, setName] = useState(initialMember?.name || '');
+    const [pulsusRole, setPulsusRole] = useState(initialMember?.pulsusRole || 'caretaker');
+    const [title, setTitle] = useState(
+        initialMember?.title ||
+            (initialMember?.pulsusRole === 'vet'
+                ? 'Sorumlu Veteriner Hekim'
+                : initialMember?.pulsusRole === 'technician'
+                  ? 'Veteriner Sağlık Teknikeri'
+                  : 'Hayvan Bakıcısı / Temizlik Görevlisi')
+    );
+    const [defaultBackupEmail, setDefaultBackupEmail] = useState(
+        initialMember?.defaultBackupEmail || ''
+    );
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    if (!isOpen) return null;
+
+    const handleRoleSelect = newRole => {
+        setPulsusRole(newRole);
+        if (newRole === 'vet') setTitle('Sorumlu Veteriner Hekim');
+        else if (newRole === 'technician' && !title.toLowerCase().includes('tekniker')) {
+            setTitle('Veteriner Sağlık Teknikeri');
+        } else if (newRole === 'caretaker') {
+            setTitle('Hayvan Bakıcısı / Temizlik Görevlisi');
+        }
+    };
+
+    const handleSubmit = async e => {
+        e.preventDefault();
+        setError('');
+        setSubmitting(true);
+        try {
+            await apiFetch('/api/members', {
+                method: isEdit ? 'PUT' : 'POST',
+                body: JSON.stringify({
+                    email: email.trim().toLowerCase(),
+                    name: name.trim(),
+                    pulsusRole,
+                    title: title.trim(),
+                    defaultBackupEmail: defaultBackupEmail || null,
+                    isActive: true
+                })
+            });
+            await onSaved();
+        } catch (err) {
+            setError(err.message || 'Personel görev/rol bilgisi kaydedilemedi.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden">
+                <div className="shrink-0 px-5 py-3.5 bg-gradient-to-r from-indigo-700 to-violet-700 text-white flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm sm:text-base font-bold">
+                            {isEdit
+                                ? 'Personel Görev & Yetki Rolünü Düzenle'
+                                : 'Yeni Personel & Görev Tanımla'}
+                        </h3>
+                        <p className="text-[11px] text-indigo-100">
+                            Sistemdeki yetki grubunu, görev ünvanını ve Circa izin yedeğini belirleyin
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <form
+                    onSubmit={handleSubmit}
+                    className="flex flex-col flex-1 min-h-0 overflow-hidden"
+                >
+                    <div className="p-5 space-y-3.5 overflow-y-auto flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Ad Soyad *
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={name}
+                                    onChange={e => setName(e.target.value)}
+                                    placeholder="Örn: Kübra Çelik"
+                                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Kurumsal E-Posta *
+                                </label>
+                                <input
+                                    type="email"
+                                    required
+                                    disabled={isEdit}
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    placeholder="ad.soyad@medeniyet.edu.tr"
+                                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl disabled:bg-slate-100 disabled:text-slate-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                1. Sistem Yetki Rolü (Pulsus Davranışı) *
+                            </label>
+                            <div className="grid grid-cols-1 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleRoleSelect('vet')}
+                                    className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                                        pulsusRole === 'vet'
+                                            ? 'bg-rose-50 border-rose-500 text-rose-950 ring-1 ring-rose-500'
+                                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <div className="font-extrabold">
+                                        🩺 Sorumlu Veteriner Hekim (Tam Yetki / Admin)
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 mt-0.5">
+                                        Ritus rutin şablonlarını oluşturur/düzenler, eskalasyonları ve dış birim işlerini yönetir, personel rollerini atar.
+                                    </div>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleRoleSelect('technician')}
+                                    className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                                        pulsusRole === 'technician'
+                                            ? 'bg-indigo-50 border-indigo-500 text-indigo-950 ring-1 ring-indigo-500'
+                                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <div className="font-extrabold">
+                                        🔬 Tekniker / Denetçi (Kontrol Eden &amp; Görev Atayan)
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 mt-0.5">
+                                        Rutin görevleri denetler (onaylar, tekrarlatır veya hekime eskale eder), Sequa üzerinden görev açar ve hekimden muayene talep eder.
+                                    </div>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleRoleSelect('caretaker')}
+                                    className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                                        pulsusRole === 'caretaker'
+                                            ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-1 ring-emerald-500'
+                                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <div className="font-extrabold">
+                                        🧹 Hayvan Bakıcısı / Temizlik Görevlisi (Uygulayıcı)
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 mt-0.5">
+                                        Kendisine atanan rutin ve anlık görevleri uygular, kontrole gönderir; aksaklık gördüğünde üst sorumluya problem bildirir.
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                                2. Görev / Pozisyon Ünvanı (Ekranda Görünen Görev Adı) *
+                            </label>
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                {PRESET_TITLES.map(preset => (
+                                    <button
+                                        key={preset.label}
+                                        type="button"
+                                        onClick={() => {
+                                            setTitle(preset.label);
+                                            setPulsusRole(preset.role);
+                                        }}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                                            title === preset.label
+                                                ? 'bg-slate-900 text-white border-slate-900'
+                                                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                        }`}
+                                    >
+                                        {preset.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <input
+                                type="text"
+                                required
+                                value={title}
+                                onChange={e => setTitle(e.target.value)}
+                                placeholder="Örn: Veteriner Sağlık Teknikeri"
+                                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                                3. Varsayılan Circa İzin Yedeği
+                            </label>
+                            <select
+                                value={defaultBackupEmail}
+                                onChange={e => setDefaultBackupEmail(e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                            >
+                                <option value="">
+                                    Yedek Yok (İzinliyken Sorumlu Vet. Hekime Düşsün)
+                                </option>
+                                {members
+                                    .filter(
+                                        m =>
+                                            String(m.email).toLowerCase() !==
+                                            String(email).trim().toLowerCase()
+                                    )
+                                    .map(m => (
+                                        <option key={m.email} value={m.email}>
+                                            {m.name} ({m.title || m.pulsusRole})
+                                        </option>
+                                    ))}
+                            </select>
+                        </div>
+
+                        {error && (
+                            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                                {error}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="shrink-0 px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70"
+                        >
+                            Vazgeç
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={submitting}
+                            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700"
+                        >
+                            {submitting ? 'Kaydediliyor...' : 'Görev ve Rolü Kaydet'}
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     );
