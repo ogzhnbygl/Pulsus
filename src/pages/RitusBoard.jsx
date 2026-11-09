@@ -892,14 +892,26 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
     const [backupReviewer, setBackupReviewer] = useState(
         initialTemplate?.backupReviewer ?? 'gamze.demir@medeniyet.edu.tr'
     );
-    const [checklistText, setChecklistText] = useState(
-        (initialTemplate?.checklist || ['Altlık ve suluk kontrolü', 'Zemin dezenfeksiyonu']).join('\n')
+    const [checklistItems, setChecklistItems] = useState(
+        Array.isArray(initialTemplate?.checklist) ? initialTemplate.checklist : []
     );
+    const [newChecklistStep, setNewChecklistStep] = useState('');
     const [updateScope, setUpdateScope] = useState('current_week');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
 
     if (!isOpen) return null;
+
+    const handleAddChecklistStep = () => {
+        const trimmed = newChecklistStep.trim();
+        if (!trimmed) return;
+        setChecklistItems(prev => [...prev, trimmed]);
+        setNewChecklistStep('');
+    };
+
+    const handleRemoveChecklistStep = index => {
+        setChecklistItems(prev => prev.filter((_, idx) => idx !== index));
+    };
 
     const toggleDay = d => {
         if (daysOfWeek.includes(d)) {
@@ -914,6 +926,11 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
         setError('');
         setSubmitting(true);
         try {
+            const pendingStep = newChecklistStep.trim();
+            const finalChecklist = pendingStep
+                ? [...checklistItems, pendingStep]
+                : checklistItems;
+
             const payload = {
                 ...(isEdit ? { id: String(initialTemplate._id) } : {}),
                 title: title.trim(),
@@ -927,10 +944,7 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
                 backupAssignee: backupAssignee || null,
                 primaryReviewer,
                 backupReviewer: backupReviewer || null,
-                checklist: checklistText
-                    .split('\n')
-                    .map(s => s.trim())
-                    .filter(Boolean),
+                checklist: finalChecklist.map(s => String(s).trim()).filter(Boolean),
                 updateScope
             };
 
@@ -1163,15 +1177,59 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Alt Kontrol Listesi (Her satıra 1 adım)
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                Alt Kontrol Listesi (Checklist)
                             </label>
-                            <textarea
-                                rows={2}
-                                value={checklistText}
-                                onChange={e => setChecklistText(e.target.value)}
-                                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl"
-                            />
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={newChecklistStep}
+                                    onChange={e => setNewChecklistStep(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleAddChecklistStep();
+                                        }
+                                    }}
+                                    placeholder="Kontrol adımı yazıp Enter'a veya Ekle'ye basın..."
+                                    className="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-xl"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleAddChecklistStep}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 shrink-0"
+                                >
+                                    <Plus size={13} />
+                                    Ekle
+                                </button>
+                            </div>
+
+                            {checklistItems.length > 0 && (
+                                <div className="mt-2 space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                                    {checklistItems.map((step, idx) => (
+                                        <div
+                                            key={`${idx}-${step}`}
+                                            className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800"
+                                        >
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <Square
+                                                    size={13}
+                                                    className="text-indigo-500 shrink-0"
+                                                />
+                                                <span className="truncate font-medium">{step}</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveChecklistStep(idx)}
+                                                className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 shrink-0"
+                                                title="Maddeden çıkar"
+                                            >
+                                                <Trash2 size={13} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {error && (
