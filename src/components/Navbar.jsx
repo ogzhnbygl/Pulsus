@@ -12,7 +12,7 @@ import {
 import { useAuth, getApexUrl, isPreviewHost } from '../context/AuthContext';
 
 export default function Navbar() {
-    const { user, logout, isVet, switchDevProfile, devProfiles } = useAuth();
+    const { user, logout, isVet, isCaretaker, switchDevProfile, devProfiles } = useAuth();
 
     const navItems = [
         {
@@ -22,29 +22,33 @@ export default function Navbar() {
             icon: Activity,
             activeColor: 'border-rose-600 text-rose-700 bg-rose-50/70'
         },
-        {
-            to: '/ritus',
-            label: 'Ritus',
-            subtitle: 'Periyodik Görevler & Şablonlar',
-            icon: CalendarClock,
-            activeColor: 'border-indigo-600 text-indigo-700 bg-indigo-50/70'
-        },
-        {
-            to: '/sequa',
-            label: 'Sequa',
-            subtitle: 'Anlık Görev, Talep & Dış Birim',
-            icon: Zap,
-            activeColor: 'border-emerald-600 text-emerald-700 bg-emerald-50/70'
-        },
-        {
-            to: '/reports',
-            label: 'Raporlar & Ekip',
-            subtitle: 'Performans & İzin Durumu',
-            icon: BarChart3,
-            activeColor: 'border-violet-600 text-violet-700 bg-violet-50/70'
-        },
+        ...(!isCaretaker
+            ? [
+                  {
+                      to: '/ritus',
+                      label: 'Ritus',
+                      subtitle: 'Periyodik Görevler & Şablonlar',
+                      icon: CalendarClock,
+                      activeColor: 'border-indigo-600 text-indigo-700 bg-indigo-50/70'
+                  },
+                  {
+                      to: '/sequa',
+                      label: 'Sequa',
+                      subtitle: 'Anlık Görev, Talep & Dış Birim',
+                      icon: Zap,
+                      activeColor: 'border-emerald-600 text-emerald-700 bg-emerald-50/70'
+                  }
+              ]
+            : []),
         ...(isVet
             ? [
+                  {
+                      to: '/reports',
+                      label: 'Raporlar & Ekip',
+                      subtitle: 'Performans & İzin Durumu',
+                      icon: BarChart3,
+                      activeColor: 'border-violet-600 text-violet-700 bg-violet-50/70'
+                  },
                   {
                       to: '/staff',
                       label: 'Personel & Rol Yönetimi',
@@ -124,34 +128,36 @@ export default function Navbar() {
                     </div>
                 </div>
 
-                {/* Bottom Row: 4 Navigation Tabs */}
-                <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar -mb-px pt-1">
-                    {navItems.map(item => {
-                        const IconComponent = item.icon;
-                        return (
-                            <NavLink
-                                key={item.to}
-                                to={item.to}
-                                end={item.to === '/'}
-                                className={({ isActive }) =>
-                                    `group flex items-center gap-2.5 px-3.5 py-2.5 border-b-2 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap rounded-t-lg ${
-                                        isActive
-                                            ? item.activeColor
-                                            : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                                    }`
-                                }
-                            >
-                                <IconComponent size={17} className="shrink-0" />
-                                <div className="flex flex-col text-left">
-                                    <span className="leading-none">{item.label}</span>
-                                    <span className="hidden sm:inline text-[10px] font-normal text-slate-400 mt-0.5">
-                                        {item.subtitle}
-                                    </span>
-                                </div>
-                            </NavLink>
-                        );
-                    })}
-                </nav>
+                {/* Bottom Row: Navigation Tabs (hidden for Caretaker who only uses Pulsus home) */}
+                {navItems.length > 1 && (
+                    <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar -mb-px pt-1">
+                        {navItems.map(item => {
+                            const IconComponent = item.icon;
+                            return (
+                                <NavLink
+                                    key={item.to}
+                                    to={item.to}
+                                    end={item.to === '/'}
+                                    className={({ isActive }) =>
+                                        `group flex items-center gap-2.5 px-3.5 py-2.5 border-b-2 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap rounded-t-lg ${
+                                            isActive
+                                                ? item.activeColor
+                                                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                                        }`
+                                    }
+                                >
+                                    <IconComponent size={17} className="shrink-0" />
+                                    <div className="flex flex-col text-left">
+                                        <span className="leading-none">{item.label}</span>
+                                        <span className="hidden sm:inline text-[10px] font-normal text-slate-400 mt-0.5">
+                                            {item.subtitle}
+                                        </span>
+                                    </div>
+                                </NavLink>
+                            );
+                        })}
+                    </nav>
+                )}
             </div>
         </header>
     );

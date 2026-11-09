@@ -15,7 +15,9 @@ import {
     CalendarClock,
     Zap,
     RefreshCw,
-    Link2
+    Link2,
+    CheckSquare,
+    Square
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -229,12 +231,14 @@ export default function PulseDashboard() {
                             </p>
                         </div>
                     </div>
-                    <Link
-                        to="/reports"
-                        className="text-xs font-bold text-amber-900 hover:underline inline-flex items-center gap-1 shrink-0"
-                    >
-                        İzin &amp; Devir Detayları <ArrowRight size={13} />
-                    </Link>
+                    {isVet && (
+                        <Link
+                            to="/reports"
+                            className="text-xs font-bold text-amber-900 hover:underline inline-flex items-center gap-1 shrink-0"
+                        >
+                            İzin &amp; Devir Detayları <ArrowRight size={13} />
+                        </Link>
+                    )}
                 </div>
             )}
 
@@ -583,25 +587,29 @@ export default function PulseDashboard() {
                             </span>
                             <div>
                                 <h2 className="text-sm font-extrabold text-slate-900">
-                                    Ritus — Haftalık Rutin Görevlerim ({myRitusRuns.length})
+                                    {isCaretaker
+                                        ? `Haftalık Rutin Görevlerim (${myRitusRuns.length})`
+                                        : `Ritus — Haftalık Rutin Görevlerim (${myRitusRuns.length})`}
                                 </h2>
                                 <p className="text-[11px] text-slate-500">
                                     Üzerinize atanan veya yedek olarak devraldığınız periyodik işler
                                 </p>
                             </div>
                         </div>
-                        <Link
-                            to="/ritus"
-                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1"
-                        >
-                            Ritus Panosu <ArrowRight size={13} />
-                        </Link>
+                        {!isCaretaker && (
+                            <Link
+                                to="/ritus"
+                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1"
+                            >
+                                Ritus Panosu <ArrowRight size={13} />
+                            </Link>
+                        )}
                     </div>
 
                     <div className="p-4 space-y-3 flex-1">
                         {myRitusRuns.length === 0 ? (
                             <div className="py-10 text-center text-xs text-slate-400">
-                                Bu hafta için bekleyen Ritus rutin göreviniz bulunmuyor.
+                                Bu hafta için bekleyen rutin göreviniz bulunmuyor.
                             </div>
                         ) : (
                             myRitusRuns.map(run => {
@@ -614,9 +622,11 @@ export default function PulseDashboard() {
                                     >
                                         <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-600 text-white">
-                                                    RITUS
-                                                </span>
+                                                {!isCaretaker && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-600 text-white">
+                                                        RITUS
+                                                    </span>
+                                                )}
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${freq.badge}`}>
                                                     {freq.label}
                                                 </span>
@@ -635,10 +645,51 @@ export default function PulseDashboard() {
                                             <p className="text-xs text-slate-600">{run.description}</p>
                                         )}
 
+                                        {/* Interactive Checklist directly on Pulsus Dashboard */}
+                                        {run.checklist?.length > 0 && (
+                                            <div className="space-y-1.5 pt-1.5 border-t border-slate-200/70">
+                                                {run.checklist.map((item, idx) => (
+                                                    <button
+                                                        key={item.id ?? idx}
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleRitusQuickAction(
+                                                                run._id,
+                                                                'toggle_checklist',
+                                                                { checklistItemId: item.id ?? idx }
+                                                            )
+                                                        }
+                                                        className="w-full flex items-start gap-2 text-left text-xs text-slate-700 hover:text-indigo-700 py-0.5"
+                                                    >
+                                                        {item.done ? (
+                                                            <CheckSquare
+                                                                size={14}
+                                                                className="text-emerald-600 shrink-0 mt-0.5"
+                                                            />
+                                                        ) : (
+                                                            <Square
+                                                                size={14}
+                                                                className="text-slate-400 shrink-0 mt-0.5"
+                                                            />
+                                                        )}
+                                                        <span
+                                                            className={
+                                                                item.done
+                                                                    ? 'line-through text-slate-400'
+                                                                    : 'font-medium'
+                                                            }
+                                                        >
+                                                            {item.text}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         {/* Backup / Leave Delegation Badge */}
                                         {run.assignmentStatus === 'backup' && (
                                             <div className="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-semibold text-amber-900">
-                                                🏖️ Circa İzin Devri: {getMemberName(run.delegatedFrom, members)} izinli olduğu için yedek olarak size devredildi.
+                                                🏖️ İzin Devri: {getMemberName(run.delegatedFrom, members)} izinli olduğu için yedek olarak size devredildi.
                                             </div>
                                         )}
 
@@ -661,10 +712,10 @@ export default function PulseDashboard() {
                                                         setSequaModalOpen(true);
                                                     }}
                                                     className="px-2 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold inline-flex items-center gap-1"
-                                                    title="Bu rutinden Sequa problemi veya hekim talebi doğur"
+                                                    title="Bu rutinde karşılaşılan sorunu bildir"
                                                 >
                                                     <Link2 size={12} />
-                                                    Sorun / Sequa Aç
+                                                    {isCaretaker ? 'Sorun Bildir' : 'Sorun / Sequa Aç'}
                                                 </button>
 
                                                 {run.status === 'todo' && (
@@ -714,25 +765,29 @@ export default function PulseDashboard() {
                             </span>
                             <div>
                                 <h2 className="text-sm font-extrabold text-slate-900">
-                                    Sequa — Kişi Bazlı Görev &amp; Taleplerim ({mySequaTasks.length})
+                                    {isCaretaker
+                                        ? `Atanan Ek Görevlerim (${mySequaTasks.length})`
+                                        : `Sequa — Kişi Bazlı Görev & Taleplerim (${mySequaTasks.length})`}
                                 </h2>
                                 <p className="text-[11px] text-slate-500">
-                                    Rutin dışı atanan görevler, muayene talepleri ve arıza bildirimleri
+                                    Rutin dışı atanan görevler ve arıza bildirimleri
                                 </p>
                             </div>
                         </div>
-                        <Link
-                            to="/sequa"
-                            className="text-xs font-bold text-rose-600 hover:text-rose-800 inline-flex items-center gap-1"
-                        >
-                            Sequa Panosu <ArrowRight size={13} />
-                        </Link>
+                        {!isCaretaker && (
+                            <Link
+                                to="/sequa"
+                                className="text-xs font-bold text-rose-600 hover:text-rose-800 inline-flex items-center gap-1"
+                            >
+                                Sequa Panosu <ArrowRight size={13} />
+                            </Link>
+                        )}
                     </div>
 
                     <div className="p-4 space-y-3 flex-1">
                         {mySequaTasks.length === 0 ? (
                             <div className="py-10 text-center text-xs text-slate-400">
-                                Üzerinize atanmış açık bir Sequa görevi bulunmuyor.
+                                Üzerinize atanmış açık bir ek görev bulunmuyor.
                             </div>
                         ) : (
                             mySequaTasks.map(task => {
@@ -747,9 +802,11 @@ export default function PulseDashboard() {
                                     >
                                         <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-600 text-white">
-                                                    SEQUA
-                                                </span>
+                                                {!isCaretaker && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-600 text-white">
+                                                        SEQUA
+                                                    </span>
+                                                )}
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${tType.badge}`}>
                                                     {tType.shortLabel}
                                                 </span>
