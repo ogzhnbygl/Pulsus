@@ -60,23 +60,15 @@ export default function Navbar() {
                         <div className="bg-gradient-to-br from-rose-600 via-rose-500 to-indigo-600 p-2.5 rounded-xl text-white shadow-sm shrink-0">
                             <Activity size={22} className="stroke-[2.5]" />
                         </div>
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900">
-                                    Pulsus
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900">
+                                Pulsus
+                            </span>
+                            {isPreviewHost() && (
+                                <span className="px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 rounded-full">
+                                    Test Ortamı
                                 </span>
-                                <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                                    Ritus + Sequa Çift Motor
-                                </span>
-                                {isPreviewHost() && (
-                                    <span className="px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 rounded-full">
-                                        Test Ortamı
-                                    </span>
-                                )}
-                            </div>
-                            <p className="text-xs text-slate-500 truncate">
-                                Ritus &amp; Sequa Operasyon ve Görev Merkezi
-                            </p>
+                            )}
                         </div>
                     </div>
 
