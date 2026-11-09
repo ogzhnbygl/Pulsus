@@ -117,6 +117,12 @@ const DEFAULT_SEQUA_TASKS = [
 ];
 
 async function ensureDefaultSequaTasks(db) {
+    const metaCol = db.collection('system_meta');
+    const seededDoc = await metaCol.findOne({ _id: 'sequa_tasks_seeded' });
+    if (seededDoc?.seeded) {
+        return;
+    }
+
     const col = db.collection('sequa_tasks');
     const count = await col.countDocuments();
     if (count === 0) {
@@ -138,6 +144,12 @@ async function ensureDefaultSequaTasks(db) {
             }))
         );
     }
+
+    await metaCol.updateOne(
+        { _id: 'sequa_tasks_seeded' },
+        { $set: { seeded: true, updatedAt: new Date() } },
+        { upsert: true }
+    );
 }
 
 export default async function handler(req, res) {
@@ -548,6 +560,43 @@ export default async function handler(req, res) {
         }
     }
 
-    res.setHeader('Allow', ['GET', 'POST', 'PATCH']);
+    if (req.method === 'DELETE') {
+        const targetId = req.body?.id || req.body?._id || req.query?.id;
+        if (!targetId || !ObjectId.isValid(targetId)) {
+            return res.status(400).json({ error: 'Geçerli bir görev ID gereklidir.' });
+        }
+
+        try {
+            const taskObjectId = new ObjectId(targetId);
+            const existing = await sequaCol.findOne({ _id: taskObjectId });
+            if (!existing) {
+                return res.status(404).json({ error: 'Sequa görevi bulunamadı.' });
+            }
+
+            const isVet = user.pulsusRole === 'vet';
+            const isTech = user.pulsusRole === 'technician';
+            const isCreator = existing.createdBy?.toLowerCase() === user.email.toLowerCase();
+
+            if (!isVet && !isTech && !isCreator) {
+                return res.status(403).json({
+                    error: 'Bu görevi silme yetkiniz bulunmuyor.'
+                });
+            }
+
+            await db.collection('system_meta').updateOne(
+                { _id: 'sequa_tasks_seeded' },
+                { $set: { seeded: true, updatedAt: new Date() } },
+                { upsert: true }
+            );
+
+            await sequaCol.deleteOne({ _id: taskObjectId });
+            return res.status(200).json({ success: true, deletedId: targetId });
+        } catch (error) {
+            console.error('DELETE /api/sequa/tasks error:', error);
+            return res.status(500).json({ error: 'Sequa görevi silinirken hata oluştu.' });
+        }
+    }
+
+    res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
 }

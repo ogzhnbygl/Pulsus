@@ -8,7 +8,8 @@ import {
     CheckCircle2,
     RotateCcw,
     SlidersHorizontal,
-    Link2
+    Link2,
+    Trash2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -66,6 +67,16 @@ export default function SequaBoard() {
             await loadData();
         } catch (err) {
             alert(err.message || 'İşlem başarısız oldu.');
+        }
+    };
+
+    const handleDeleteTask = async taskId => {
+        if (!window.confirm('Bu Sequa görev kaydını silmek istediğinize emin misiniz?')) return;
+        try {
+            await apiFetch(`/api/sequa/tasks?id=${taskId}`, { method: 'DELETE' });
+            await loadData();
+        } catch (err) {
+            alert(err.message || 'Görev silinemedi.');
         }
     };
 
@@ -340,7 +351,7 @@ export default function SequaBoard() {
                                                 </div>
 
                                                 {/* Action Buttons */}
-                                                {task.status !== 'done' && (
+                                                {(task.status !== 'done' || isVet || isTechnician) && (
                                                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
                                                         {task.status === 'reported' &&
                                                             !isCaretaker && (
@@ -390,7 +401,7 @@ export default function SequaBoard() {
                                                             </button>
                                                         )}
 
-                                                        {(task.status === 'review' || isVet) &&
+                                                        {(task.status === 'review' || (isVet && task.status !== 'done')) &&
                                                             !isCaretaker && (
                                                                 <button
                                                                     type="button"
@@ -406,6 +417,17 @@ export default function SequaBoard() {
                                                                     Onayla &amp; Kapat
                                                                 </button>
                                                             )}
+
+                                                        {(isVet || isTechnician) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteTask(task._id)}
+                                                                className="p-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 ml-auto"
+                                                                title="Görevi sil"
+                                                            >
+                                                                <Trash2 size={12} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

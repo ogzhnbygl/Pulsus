@@ -136,12 +136,22 @@ export default function RitusBoard() {
     };
 
     const handleDeleteTemplate = async templateId => {
-        if (!window.confirm('Bu rutin şablonunu silmek istediğinize emin misiniz?')) return;
+        if (!window.confirm('Bu rutin şablonunu ve aktif haftalık kartlarını silmek istediğinize emin misiniz?')) return;
         try {
-            await apiFetch(`/api/ritus/templates?id=${templateId}`, { method: 'DELETE' });
+            await apiFetch(`/api/ritus/templates?id=${templateId}&updateScope=current_week`, { method: 'DELETE' });
             await loadData();
         } catch (err) {
             alert(err.message || 'Şablon silinemedi.');
+        }
+    };
+
+    const handleDeleteRun = async runId => {
+        if (!window.confirm('Bu görev kartını panodan silmek istediğinize emin misiniz?')) return;
+        try {
+            await apiFetch(`/api/ritus/runs?id=${runId}`, { method: 'DELETE' });
+            await loadData();
+        } catch (err) {
+            alert(err.message || 'Görev kartı silinemedi.');
         }
     };
 
@@ -658,6 +668,17 @@ export default function RitusBoard() {
                                                                 <Link2 size={11} />
                                                                 Sequa Aç
                                                             </button>
+
+                                                            {isVet && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDeleteRun(run._id)}
+                                                                    className="p-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700"
+                                                                    title="Görev kartını sil"
+                                                                >
+                                                                    <Trash2 size={11} />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );
@@ -679,6 +700,26 @@ export default function RitusBoard() {
                         </div>
                     )}
 
+                    {templates.length === 0 ? (
+                        <div className="py-12 text-center space-y-3">
+                            <p className="text-xs font-semibold text-slate-500">
+                                Henüz tanımlanmış bir rutin şablon bulunmuyor.
+                            </p>
+                            {isVet && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setEditingTemplate(null);
+                                        setTemplateModalOpen(true);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700"
+                                >
+                                    <Plus size={14} />
+                                    Yeni Rutin Şablonu Oluştur
+                                </button>
+                            )}
+                        </div>
+                    ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {templates.map(tpl => {
                             const freq =
@@ -779,6 +820,7 @@ export default function RitusBoard() {
                             );
                         })}
                     </div>
+                    )}
                 </div>
             )}
 

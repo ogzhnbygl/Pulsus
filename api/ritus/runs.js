@@ -533,6 +533,31 @@ export default async function handler(req, res) {
         }
     }
 
-    res.setHeader('Allow', ['GET', 'POST', 'PATCH']);
+    if (req.method === 'DELETE') {
+        if (user.pulsusRole !== 'vet') {
+            return res.status(403).json({
+                error: 'Rutin görev kartlarını silme yetkisi yalnızca Sorumlu Veteriner Hekime aittir.'
+            });
+        }
+
+        const targetId = req.body?.id || req.body?._id || req.query?.id;
+        if (!targetId || !ObjectId.isValid(targetId)) {
+            return res.status(400).json({ error: 'Geçerli bir görev ID gereklidir.' });
+        }
+
+        try {
+            const runObjectId = new ObjectId(targetId);
+            const delRes = await runsCol.deleteOne({ _id: runObjectId });
+            if (!delRes.deletedCount) {
+                return res.status(404).json({ error: 'Silinecek görev kartı bulunamadı.' });
+            }
+            return res.status(200).json({ success: true, deletedId: targetId });
+        } catch (error) {
+            console.error('DELETE /api/ritus/runs error:', error);
+            return res.status(500).json({ error: 'Görev kartı silinirken hata oluştu.' });
+        }
+    }
+
+    res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
 }

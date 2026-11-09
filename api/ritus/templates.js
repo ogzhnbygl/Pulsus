@@ -234,7 +234,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
         const targetId = req.body?.id || req.body?._id || req.query?.id;
-        const updateScope = req.body?.updateScope || req.query?.updateScope || 'next_week';
+        const updateScope = req.body?.updateScope || req.query?.updateScope || 'current_week';
 
         if (!targetId || !ObjectId.isValid(targetId)) {
             return res.status(400).json({ error: 'Geçerli bir şablon ID gereklidir.' });
@@ -247,15 +247,19 @@ export default async function handler(req, res) {
                 return res.status(404).json({ error: 'Şablon bulunamadı.' });
             }
 
+            await db.collection('system_meta').updateOne(
+                { _id: 'ritus_templates_seeded' },
+                { $set: { seeded: true, updatedAt: new Date() } },
+                { upsert: true }
+            );
+
             await templatesCol.deleteOne({ _id: objectId });
 
             let affectedCurrentWeekRuns = 0;
             if (updateScope === 'current_week') {
-                const currentWeekStart = getMondayOfDate(new Date());
                 const delRuns = await db.collection('ritus_runs').deleteMany({
                     templateId: objectId.toString(),
-                    weekStart: currentWeekStart,
-                    status: 'todo'
+                    status: { $ne: 'done' }
                 });
                 affectedCurrentWeekRuns = delRuns.deletedCount || 0;
             }
