@@ -26,7 +26,6 @@ import {
     SEQUA_PRIORITIES,
     SEQUA_TASK_TYPES,
     formatScheduledBadge,
-    formatWeekRangeLabel,
     getMemberName
 } from '../utils/pulsusHelpers';
 import {
@@ -151,91 +150,62 @@ export default function PulseDashboard() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-            {/* Top Welcome & Quick Trigger Bar */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            <Activity size={13} />
-                            Canlı Operasyon Nabzı
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500">
-                            Aktif Hafta Paketi: {formatWeekRangeLabel(ritusData.currentWeekStart)}
-                        </span>
-                        {ritusData.nextWeekDistributed && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                ✓ Cuma 16:30 Gelecek Hafta Paketi Hazır ({ritusData.nextWeekStart})
-                            </span>
-                        )}
-                    </div>
-                    <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1.5">
-                        Hoş Geldiniz, {user?.name}
-                    </h1>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                        {isVet
-                            ? 'Sorumlu Veteriner Hekim görünümü: Rutin denetimlerini, yedeksiz Circa izin devirlerini, eskalasyonları ve dış birim işlerini buradan yönetebilirsiniz.'
-                            : isTechnician
-                              ? 'Tekniker görünümü: Kendi rutin/anlık işlerinizi yürütebilir, bakıcıların tamamladığı rutinleri denetleyip onaylayabilir veya tekrarlatabilirsiniz.'
-                              : 'Bakıcı / Temizlik görünümü: Günlük rutin işlerinizi takip edebilir, kontrole gönderebilir ve sahada gördüğünüz problemleri üst sorumlulara bildirebilirsiniz.'}
-                    </p>
-                </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-5">
+            {/* Compact Quick Action Bar */}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                    type="button"
+                    onClick={() => loadAll(true)}
+                    disabled={refreshing}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs"
+                >
+                    <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+                    Yenile
+                </button>
 
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {isCaretaker ? (
                     <button
                         type="button"
-                        onClick={() => loadAll(true)}
-                        disabled={refreshing}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700"
+                        onClick={() => {
+                            setSourceRitusForSequa(null);
+                            setSequaModalInitialType('issue_report');
+                            setSequaModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-xs"
                     >
-                        <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-                        Yenile
+                        <AlertTriangle size={15} />
+                        ⚠️ Problem / Arıza Bildir
                     </button>
-
-                    {isCaretaker ? (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSourceRitusForSequa(null);
-                                setSequaModalInitialType('issue_report');
-                                setSequaModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-xs"
-                        >
-                            <AlertTriangle size={15} />
-                            ⚠️ Problem / Arıza Bildir
-                        </button>
-                    ) : (
-                        <>
-                            {isTechnician && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSourceRitusForSequa(null);
-                                        setSequaModalInitialType('vet_request');
-                                        setSequaModalOpen(true);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
-                                >
-                                    <Stethoscope size={15} />
-                                    🩺 Hekime Muayene Talebi Aç
-                                </button>
-                            )}
+                ) : (
+                    <>
+                        {isTechnician && (
                             <button
                                 type="button"
                                 onClick={() => {
                                     setSourceRitusForSequa(null);
-                                    setSequaModalInitialType('task');
+                                    setSequaModalInitialType('vet_request');
                                     setSequaModalOpen(true);
                                 }}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700 shadow-xs"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
                             >
-                                <Plus size={15} />
-                                Yeni Sequa Görevi / Kaydı
+                                <Stethoscope size={15} />
+                                🩺 Hekime Muayene Talebi Aç
                             </button>
-                        </>
-                    )}
-                </div>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSourceRitusForSequa(null);
+                                setSequaModalInitialType('task');
+                                setSequaModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700 shadow-xs"
+                        >
+                            <Plus size={15} />
+                            Yeni Sequa Görevi / Kaydı
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* Circa Active Leave Banner if any staff is on leave today */}

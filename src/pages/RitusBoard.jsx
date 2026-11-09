@@ -91,7 +91,7 @@ export default function RitusBoard() {
                 method: 'POST',
                 body: JSON.stringify({
                     action: 'distribute',
-                    target
+                    scope: target
                 })
             });
             if (target === 'next_week') {
@@ -505,7 +505,7 @@ export default function RitusBoard() {
                                                                                 run._id,
                                                                                 'toggle_checklist',
                                                                                 {
-                                                                                    itemIndex: idx
+                                                                                    checklistItemId: item.id ?? idx
                                                                                 }
                                                                             )
                                                                         }

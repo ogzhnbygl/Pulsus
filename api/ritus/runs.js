@@ -73,7 +73,9 @@ export default async function handler(req, res) {
             const requestedWeek =
                 req.query?.weekStart && /^\d{4}-\d{2}-\d{2}$/.test(req.query.weekStart)
                     ? getMondayOfDate(req.query.weekStart)
-                    : currentWeekMonday;
+                    : req.query?.week === 'next'
+                      ? nextWeekMonday
+                      : currentWeekMonday;
 
             // Ensure current week has runs distributed
             const currentWeekCount = await runsCol.countDocuments({ weekStart: currentWeekMonday });
@@ -118,6 +120,8 @@ export default async function handler(req, res) {
                 weekStart: requestedWeek,
                 currentWeekMonday,
                 nextWeekMonday,
+                currentWeekStart: currentWeekMonday,
+                nextWeekStart: nextWeekMonday,
                 fridayDistributionActive: fridayReached,
                 nextWeekAutoDistributed
             });
