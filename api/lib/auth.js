@@ -98,16 +98,11 @@ export async function ensureDefaultMembers(db, client = null) {
         );
     }
 
-    // Also sync any user from Apex_db.users who has 'pulsus' access or 'admin' role
+    // Also sync any user from Apex_db.users into Pulsus_db.members
     if (client) {
         try {
             const apexDb = client.db(getDbName('Apex_db'));
-            const apexUsers = await apexDb
-                .collection('users')
-                .find({
-                    $or: [{ role: 'admin' }, { apps: 'pulsus' }]
-                })
-                .toArray();
+            const apexUsers = await apexDb.collection('users').find({}).toArray();
 
             for (const u of apexUsers) {
                 const emailLower = String(u.email || '').trim().toLowerCase();

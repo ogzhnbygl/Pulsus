@@ -176,13 +176,13 @@ export default function ReportsAndTeam() {
                         <button
                             type="button"
                             onClick={() => {
-                                setEditingMember(null);
+                                setEditingMember(members[0] || null);
                                 setMemberModalOpen(true);
                             }}
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white shadow-xs"
                         >
                             <UserPlus size={14} />
-                            Personel / Görev Tanımla
+                            Personel Görev &amp; Rol Ata
                         </button>
                     )}
                     <button
@@ -526,25 +526,45 @@ export default function ReportsAndTeam() {
 }
 
 function MemberRoleModal({ isOpen, onClose, initialMember, members, onSaved }) {
-    const isEdit = Boolean(initialMember?.email);
-    const [email, setEmail] = useState(initialMember?.email || '');
-    const [name, setName] = useState(initialMember?.name || '');
-    const [pulsusRole, setPulsusRole] = useState(initialMember?.pulsusRole || 'caretaker');
+    const defaultMember = initialMember?.email ? initialMember : members[0] || {};
+    const [email, setEmail] = useState(defaultMember.email || '');
+    const [name, setName] = useState(defaultMember.name || '');
+    const [pulsusRole, setPulsusRole] = useState(defaultMember.pulsusRole || 'caretaker');
     const [title, setTitle] = useState(
-        initialMember?.title ||
-            (initialMember?.pulsusRole === 'vet'
+        defaultMember.title ||
+            (defaultMember.pulsusRole === 'vet'
                 ? 'Sorumlu Veteriner Hekim'
-                : initialMember?.pulsusRole === 'technician'
+                : defaultMember.pulsusRole === 'technician'
                   ? 'Veteriner Sağlık Teknikeri'
                   : 'Hayvan Bakıcısı / Temizlik Görevlisi')
     );
     const [defaultBackupEmail, setDefaultBackupEmail] = useState(
-        initialMember?.defaultBackupEmail || ''
+        defaultMember.defaultBackupEmail || ''
     );
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
 
     if (!isOpen) return null;
+
+    const handleMemberSelectChange = selectedEmail => {
+        const found = members.find(
+            m => String(m.email).toLowerCase() === String(selectedEmail).toLowerCase()
+        );
+        if (found) {
+            setEmail(found.email);
+            setName(found.name || found.email.split('@')[0]);
+            setPulsusRole(found.pulsusRole || 'caretaker');
+            setTitle(
+                found.title ||
+                    (found.pulsusRole === 'vet'
+                        ? 'Sorumlu Veteriner Hekim'
+                        : found.pulsusRole === 'technician'
+                          ? 'Veteriner Sağlık Teknikeri'
+                          : 'Hayvan Bakıcısı / Temizlik Görevlisi')
+            );
+            setDefaultBackupEmail(found.defaultBackupEmail || '');
+        }
+    };
 
     const handleRoleSelect = newRole => {
         setPulsusRole(newRole);
@@ -562,7 +582,7 @@ function MemberRoleModal({ isOpen, onClose, initialMember, members, onSaved }) {
         setSubmitting(true);
         try {
             await apiFetch('/api/members', {
-                method: isEdit ? 'PUT' : 'POST',
+                method: 'PUT',
                 body: JSON.stringify({
                     email: email.trim().toLowerCase(),
                     name: name.trim(),
@@ -586,12 +606,10 @@ function MemberRoleModal({ isOpen, onClose, initialMember, members, onSaved }) {
                 <div className="shrink-0 px-5 py-3.5 bg-gradient-to-r from-indigo-700 to-violet-700 text-white flex items-center justify-between">
                     <div>
                         <h3 className="text-sm sm:text-base font-bold">
-                            {isEdit
-                                ? 'Personel Görev & Yetki Rolünü Düzenle'
-                                : 'Yeni Personel & Görev Tanımla'}
+                            Personel Görev &amp; Yetki Rolü Ata
                         </h3>
                         <p className="text-[11px] text-indigo-100">
-                            Sistemdeki yetki grubunu, görev ünvanını ve Circa izin yedeğini belirleyin
+                            Veritabanındaki personeli seçip yetki rolünü, görev ünvanını ve izin yedeğini belirleyin
                         </p>
                     </div>
                     <button
@@ -608,34 +626,21 @@ function MemberRoleModal({ isOpen, onClose, initialMember, members, onSaved }) {
                     className="flex flex-col flex-1 min-h-0 overflow-hidden"
                 >
                     <div className="p-5 space-y-3.5 overflow-y-auto flex-1">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">
-                                    Ad Soyad *
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={name}
-                                    onChange={e => setName(e.target.value)}
-                                    placeholder="Örn: Kübra Çelik"
-                                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">
-                                    Kurumsal E-Posta *
-                                </label>
-                                <input
-                                    type="email"
-                                    required
-                                    disabled={isEdit}
-                                    value={email}
-                                    onChange={e => setEmail(e.target.value)}
-                                    placeholder="ad.soyad@medeniyet.edu.tr"
-                                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl disabled:bg-slate-100 disabled:text-slate-500"
-                                />
-                            </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Personel Seçin (Veritabanı Listesi) *
+                            </label>
+                            <select
+                                value={email}
+                                onChange={e => handleMemberSelectChange(e.target.value)}
+                                className="w-full px-3 py-2 text-xs font-semibold bg-white border border-slate-300 rounded-xl"
+                            >
+                                {members.map(m => (
+                                    <option key={m.email} value={m.email}>
+                                        {m.name} — {m.email} ({m.title || m.pulsusRole})
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
                         <div>
