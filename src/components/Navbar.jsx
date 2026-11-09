@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
     Activity,
     CalendarClock,
@@ -7,19 +7,12 @@ import {
     BarChart3,
     Users,
     LayoutGrid,
-    LogOut,
-    Stethoscope,
-    Wrench,
-    UserCheck,
-    Settings
+    LogOut
 } from 'lucide-react';
 import { useAuth, getApexUrl, isPreviewHost } from '../context/AuthContext';
-import { getRoleBadgeInfo } from '../utils/pulsusHelpers';
 
 export default function Navbar() {
-    const { user, logout, isVet, isTechnician, switchDevProfile, devProfiles } = useAuth();
-    const navigate = useNavigate();
-    const roleBadge = getRoleBadgeInfo(user?.pulsusRole);
+    const { user, logout, isVet, switchDevProfile, devProfiles } = useAuth();
 
     const navItems = [
         {
@@ -106,54 +99,26 @@ export default function Navbar() {
                             </div>
                         )}
 
-                        {user && (
-                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5">
-                                <span className="hidden sm:inline text-xs sm:text-sm font-bold text-slate-800">
+                        <div className="flex items-center gap-2 pl-3 sm:pl-4 border-l border-slate-200">
+                            {user && (
+                                <span className="text-xs sm:text-sm font-medium text-slate-700 mr-1">
                                     {user.name || user.email}
                                 </span>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate(isVet ? '/staff' : '/reports')}
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-opacity hover:opacity-85 ${roleBadge.className}`}
-                                    title={
-                                        isVet
-                                            ? 'Personel & Rol Yönetimi sayfasını aç'
-                                            : 'Ekip ve görev listesini görüntüle'
-                                    }
-                                >
-                                    {isVet ? (
-                                        <Stethoscope size={13} />
-                                    ) : isTechnician ? (
-                                        <Wrench size={13} />
-                                    ) : (
-                                        <UserCheck size={13} />
-                                    )}
-                                    <span className="hidden md:inline">
-                                        {user.title || roleBadge.label}
-                                    </span>
-                                    <span className="md:hidden">{roleBadge.shortLabel}</span>
-                                    {isVet && <Settings size={12} className="ml-0.5 opacity-75" />}
-                                </button>
-                            </div>
-                        )}
-
-                        <div className="flex items-center gap-1 pl-1 sm:pl-2 border-l border-slate-200">
+                            )}
                             <a
                                 href={getApexUrl()}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                 title="Apex Ana Ekrana Dön"
                             >
-                                <LayoutGrid size={18} />
-                                <span className="hidden lg:inline">Apex Hub</span>
+                                <LayoutGrid size={19} />
                             </a>
                             <button
                                 type="button"
                                 onClick={logout}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                                 title="Çıkış Yap"
                             >
-                                <LogOut size={18} />
-                                <span className="hidden lg:inline">Çıkış Yap</span>
+                                <LogOut size={19} />
                             </button>
                         </div>
                     </div>
