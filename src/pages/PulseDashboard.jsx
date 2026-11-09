@@ -192,34 +192,18 @@ export default function PulseDashboard() {
                         ⚠️ Problem / Arıza Bildir
                     </button>
                 ) : (
-                    <>
-                        {isTechnician && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setSourceRitusForSequa(null);
-                                    setSequaModalInitialType('vet_request');
-                                    setSequaModalOpen(true);
-                                }}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
-                            >
-                                <Stethoscope size={15} />
-                                🩺 Hekime Muayene Talebi Aç
-                            </button>
-                        )}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSourceRitusForSequa(null);
-                                setSequaModalInitialType('task');
-                                setSequaModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700 shadow-xs"
-                        >
-                            <Plus size={15} />
-                            Yeni Sequa Görevi / Kaydı
-                        </button>
-                    </>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSourceRitusForSequa(null);
+                            setSequaModalInitialType('task');
+                            setSequaModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700 shadow-xs"
+                    >
+                        <Plus size={15} />
+                        Yeni Sequa Görevi / Kaydı
+                    </button>
                 )}
             </div>
 

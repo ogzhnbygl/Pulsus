@@ -163,48 +163,18 @@ export default function SequaBoard() {
                             ⚠️ Problem / Arıza Bildir
                         </button>
                     ) : (
-                        <>
-                            {isTechnician && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setEditingTask(null);
-                                        setInitialModalType('vet_request');
-                                        setCreateModalOpen(true);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
-                                >
-                                    <Stethoscope size={15} />
-                                    🩺 Hekime Danış / Muayene Talebi
-                                </button>
-                            )}
-                            {isVet && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setEditingTask(null);
-                                        setInitialModalType('external');
-                                        setCreateModalOpen(true);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200"
-                                >
-                                    <Building2 size={15} />
-                                    🏛️ Üniversite / Dış Birim İşi Aç
-                                </button>
-                            )}
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setEditingTask(null);
-                                    setInitialModalType('task');
-                                    setCreateModalOpen(true);
-                                }}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700"
-                            >
-                                <Plus size={15} />
-                                Yeni Görev Ata
-                            </button>
-                        </>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingTask(null);
+                                setInitialModalType('task');
+                                setCreateModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700"
+                        >
+                            <Plus size={15} />
+                            Yeni Sequa Görevi / Kaydı
+                        </button>
                     )}
                 </div>
             </div>
