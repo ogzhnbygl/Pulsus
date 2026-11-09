@@ -249,35 +249,34 @@ export default function RitusBoard() {
                     </h1>
                 </div>
 
-                {/* Sub-tabs: Kanban vs Template Planner */}
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-                        <button
-                            type="button"
-                            onClick={() => setActiveSubTab('kanban')}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                activeSubTab === 'kanban'
-                                    ? 'bg-white text-indigo-700 shadow-xs'
-                                    : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            📋 Operasyon Panosu
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveSubTab('templates')}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                activeSubTab === 'templates'
-                                    ? 'bg-white text-indigo-700 shadow-xs'
-                                    : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            {!isVet && <Lock size={12} className="text-slate-400" />}
-                            ⚙️ Rutin Şablon Planlayıcı ({templates.length})
-                        </button>
-                    </div>
+                {/* Sub-tabs: Kanban vs Template Planner (Vet / Admin Only) */}
+                {isVet && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                            <button
+                                type="button"
+                                onClick={() => setActiveSubTab('kanban')}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    activeSubTab === 'kanban'
+                                        ? 'bg-white text-indigo-700 shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                📋 Operasyon Panosu
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveSubTab('templates')}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                    activeSubTab === 'templates'
+                                        ? 'bg-white text-indigo-700 shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                ⚙️ Rutin Şablon Planlayıcı ({templates.length})
+                            </button>
+                        </div>
 
-                    {isVet && (
                         <button
                             type="button"
                             onClick={() => {
@@ -289,8 +288,8 @@ export default function RitusBoard() {
                             <Plus size={15} />
                             Yeni Rutin Şablonu
                         </button>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             {activeSubTab === 'kanban' ? (
@@ -310,40 +309,46 @@ export default function RitusBoard() {
                                 >
                                     Bu Hafta ({formatWeekRangeLabel(ritusState.currentWeekStart)})
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedWeekMode('next')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-                                        selectedWeekMode === 'next'
-                                            ? 'bg-indigo-600 text-white shadow-2xs'
-                                            : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    Gelecek Hafta ({formatWeekRangeLabel(ritusState.nextWeekStart)})
-                                </button>
+                                {isVet && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedWeekMode('next')}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                                            selectedWeekMode === 'next'
+                                                ? 'bg-indigo-600 text-white shadow-2xs'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Gelecek Hafta ({formatWeekRangeLabel(ritusState.nextWeekStart)})
+                                    </button>
+                                )}
                             </div>
 
-                            <button
-                                type="button"
-                                disabled={distributing}
-                                onClick={() => handleTriggerDistribution('next_week')}
-                                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-violet-50 text-violet-800 border border-violet-200 hover:bg-violet-100 whitespace-nowrap"
-                                title="Cuma 16:30 dağıtım motorunu gelecek hafta için çalıştır"
-                            >
-                                <CalendarClock size={14} />
-                                Gelecek Haftayı Dağıt
-                            </button>
+                            {isVet && (
+                                <>
+                                    <button
+                                        type="button"
+                                        disabled={distributing}
+                                        onClick={() => handleTriggerDistribution('next_week')}
+                                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-violet-50 text-violet-800 border border-violet-200 hover:bg-violet-100 whitespace-nowrap"
+                                        title="Cuma 16:30 dağıtım motorunu gelecek hafta için çalıştır"
+                                    >
+                                        <CalendarClock size={14} />
+                                        Gelecek Haftayı Dağıt
+                                    </button>
 
-                            <button
-                                type="button"
-                                disabled={distributing}
-                                onClick={handleSyncCircaLeaves}
-                                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 whitespace-nowrap"
-                                title="Circa izinlerini ve yedek sorumluları senkronize et"
-                            >
-                                <Palmtree size={14} />
-                                İzinleri Senkronize Et
-                            </button>
+                                    <button
+                                        type="button"
+                                        disabled={distributing}
+                                        onClick={handleSyncCircaLeaves}
+                                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 whitespace-nowrap"
+                                        title="Circa izinlerini ve yedek sorumluları senkronize et"
+                                    >
+                                        <Palmtree size={14} />
+                                        İzinleri Senkronize Et
+                                    </button>
+                                </>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2 ml-auto">
