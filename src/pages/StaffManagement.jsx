@@ -147,7 +147,7 @@ export default function StaffManagement() {
                         Personel ve Rol Yönetimi
                     </h1>
                     <p className="mt-1 text-sm text-slate-500">
-                        Veritabanındaki kullanıcıların Pulsus yetki rollerini, görev ünvanlarını ve Circa izin yedeklerini tek tıkla yönetin
+                        Veritabanındaki kullanıcıların yetki rollerini, görev ünvanlarını ve yedek sorumlularını tek tıkla yönetin
                     </p>
                 </div>
                 <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 border border-indigo-100 text-xs font-semibold text-indigo-700">
@@ -180,7 +180,7 @@ export default function StaffManagement() {
                                 <th className="px-6 py-4">Kullanıcı</th>
                                 <th className="px-6 py-4">Yetki Rolü (Tıklayarak Seçin)</th>
                                 <th className="px-6 py-4">Görev Ünvanı</th>
-                                <th className="px-6 py-4">Circa İzin Yedeği</th>
+                                <th className="px-6 py-4">Yedek Sorumlu</th>
                                 <th className="px-6 py-4 text-right">Durum</th>
                             </tr>
                         </thead>

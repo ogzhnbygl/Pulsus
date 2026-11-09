@@ -726,7 +726,7 @@ export default function RitusBoard() {
                                                     {getMemberName(tpl.primaryAssignee, members)}
                                                 </strong>
                                                 <span className="text-slate-400 block mt-1">
-                                                    Yedek Görevli (Circa):
+                                                    Yedek Görevli:
                                                 </span>
                                                 <strong className="text-slate-700">
                                                     {tpl.backupAssignee
@@ -1083,7 +1083,7 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-600 mb-1 truncate">
-                                    2. Yedek Görevli (Circa&apos;da İzinliyse)
+                                    2. Yedek Görevli
                                 </label>
                                 <select
                                     value={backupAssignee || ''}
@@ -1101,7 +1101,7 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-600 mb-1 truncate">
-                                    4. Yedek Denetçi (Circa&apos;da İzinliyse)
+                                    4. Yedek Denetçi
                                 </label>
                                 <select
                                     value={backupReviewer || ''}

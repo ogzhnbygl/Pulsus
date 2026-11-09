@@ -129,7 +129,7 @@ export default function ReportsAndTeam() {
                             ANALİTİK &amp; DENETİM
                         </span>
                         <span className="text-xs font-semibold text-slate-500">
-                            Ritus + Sequa + Circa İzin Devir Raporu
+                            Performans, Denetim ve İzin Devir Raporu
                         </span>
                     </div>
                     <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
@@ -206,7 +206,7 @@ export default function ReportsAndTeam() {
 
                 <div className="bg-white rounded-2xl border border-indigo-200 p-4">
                     <div className="text-[11px] font-bold text-indigo-700 uppercase flex items-center gap-1">
-                        <Palmtree size={12} /> Circa Yedek Devri
+                        <Palmtree size={12} /> Yedek Devri
                     </div>
                     <div className="text-2xl font-extrabold text-indigo-800 mt-1">
                         {summary.totalBackupHandovers ?? 0}
@@ -263,8 +263,8 @@ export default function ReportsAndTeam() {
                             <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
                                 <th className="py-3 px-4">Personel</th>
                                 <th className="py-3 px-4">Operasyonel Rol</th>
-                                <th className="py-3 px-4">Varsayılan Yedek</th>
-                                <th className="py-3 px-4">Circa İzin Durumu</th>
+                                <th className="py-3 px-4">Yedek Sorumlu</th>
+                                <th className="py-3 px-4">İzin Durumu</th>
                                 <th className="py-3 px-4 text-center">Ritus (Biten/Toplam)</th>
                                 <th className="py-3 px-4 text-center">Tekrarlatılan (Revizyon)</th>
                                 <th className="py-3 px-4 text-center">Eskalasyon</th>

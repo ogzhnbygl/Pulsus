@@ -39,7 +39,7 @@ export default function Navbar() {
         {
             to: '/reports',
             label: 'Raporlar & Ekip',
-            subtitle: 'Performans & Circa İzin Durumu',
+            subtitle: 'Performans & İzin Durumu',
             icon: BarChart3,
             activeColor: 'border-violet-600 text-violet-700 bg-violet-50/70'
         },
