@@ -1124,81 +1124,57 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
                         />
                     </div>
 
-                    {/* CRITICAL: Update Scope Choice ('current_week' vs 'next_week') */}
-                    <div className="p-4 rounded-xl bg-indigo-50 border-2 border-indigo-200 space-y-2">
-                        <div className="text-xs font-extrabold text-indigo-950">
-                            ⏰ Değişiklik / Yeni Şablon Ne Zaman Devreye Girsin?
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            <label
-                                className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer text-xs ${
-                                    updateScope === 'current_week'
-                                        ? 'bg-white border-indigo-600 ring-1 ring-indigo-600 text-indigo-950 font-bold'
-                                        : 'bg-white/60 border-indigo-200 text-slate-700'
-                                }`}
-                            >
-                                <input
-                                    type="radio"
-                                    name="updateScope"
-                                    value="current_week"
-                                    checked={updateScope === 'current_week'}
-                                    onChange={() => setUpdateScope('current_week')}
-                                    className="mt-0.5"
-                                />
-                                <div>
-                                    <div>Bu haftaki mevcut görevleri de güncelle</div>
-                                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">
-                                        Aktif haftanın tamamlanmamış görevlerine hemen uygulanır.
-                                    </div>
-                                </div>
-                            </label>
-
-                            <label
-                                className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer text-xs ${
-                                    updateScope === 'next_week'
-                                        ? 'bg-white border-indigo-600 ring-1 ring-indigo-600 text-indigo-950 font-bold'
-                                        : 'bg-white/60 border-indigo-200 text-slate-700'
-                                }`}
-                            >
-                                <input
-                                    type="radio"
-                                    name="updateScope"
-                                    value="next_week"
-                                    checked={updateScope === 'next_week'}
-                                    onChange={() => setUpdateScope('next_week')}
-                                    className="mt-0.5"
-                                />
-                                <div>
-                                    <div>Önümüzdeki hafta başlasın (Cuma 16:30)</div>
-                                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">
-                                        Bu haftaya dokunmaz; Cuma 16:30 dağıtımıyla devreye girer.
-                                    </div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
                     {error && (
-                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
                             {error}
                         </div>
                     )}
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                        >
-                            Vazgeç
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={submitting}
-                            className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700"
-                        >
-                            {submitting ? 'Kaydediliyor...' : 'Şablonu Kaydet ve Uygula'}
-                        </button>
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                        <div className="inline-flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                            <span className="px-2 text-[11px] font-bold text-slate-500">
+                                Uygula:
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setUpdateScope('current_week')}
+                                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                                    updateScope === 'current_week'
+                                        ? 'bg-indigo-600 text-white shadow-2xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                Bu Hafta
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setUpdateScope('next_week')}
+                                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                                    updateScope === 'next_week'
+                                        ? 'bg-indigo-600 text-white shadow-2xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                Gelecek Hafta
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-auto">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                            >
+                                Vazgeç
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={submitting}
+                                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700"
+                            >
+                                {submitting ? 'Kaydediliyor...' : 'Kaydet'}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
