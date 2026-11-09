@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Search,
     User,
-    Shield,
     Stethoscope,
     Wrench,
     UserCheck,
@@ -37,13 +36,6 @@ const ROLE_OPTIONS = [
         activeClass: 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-1 ring-emerald-500/30',
         inactiveClass: 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
     }
-];
-
-const TITLE_OPTIONS = [
-    'Sorumlu Veteriner Hekim',
-    'Veteriner Sağlık Teknikeri',
-    'Laboratuvar Teknikeri',
-    'Hayvan Bakıcısı / Temizlik Görevlisi'
 ];
 
 export default function StaffManagement() {
@@ -173,12 +165,8 @@ export default function StaffManagement() {
                         Personel ve Rol Yönetimi
                     </h1>
                     <p className="mt-1 text-sm text-slate-500">
-                        Pulsus modülüne erişim izni olan personelin yetki rollerini, görev ünvanlarını ve yedek sorumlularını yönetin
+                        Personelin görev rollerini ve yedek sorumlularını yönetin
                     </p>
-                </div>
-                <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 border border-indigo-100 text-xs font-semibold text-indigo-700">
-                    <Shield size={15} />
-                    <span>Apex&apos;te Pulsus yetkisi olan personel otomatik listelenir</span>
                 </div>
             </div>
 
@@ -204,8 +192,7 @@ export default function StaffManagement() {
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
                             <tr>
                                 <th className="px-5 py-3.5">Kullanıcı</th>
-                                <th className="px-5 py-3.5">Yetki Rolü</th>
-                                <th className="px-5 py-3.5">Görev Ünvanı</th>
+                                <th className="px-5 py-3.5">Görev Rolü</th>
                                 <th className="px-5 py-3.5">Yedek Sorumlu</th>
                                 <th className="px-5 py-3.5 text-right">İşlem</th>
                             </tr>
@@ -214,7 +201,7 @@ export default function StaffManagement() {
                             {loading ? (
                                 <tr>
                                     <td
-                                        colSpan={5}
+                                        colSpan={4}
                                         className="px-6 py-10 text-center text-xs text-slate-400"
                                     >
                                         Veritabanından personel listesi yükleniyor...
@@ -223,7 +210,7 @@ export default function StaffManagement() {
                             ) : filteredMembers.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={5}
+                                        colSpan={4}
                                         className="px-6 py-10 text-center text-sm text-slate-500"
                                     >
                                         Arama kriterine uygun personel bulunamadı.
@@ -236,15 +223,6 @@ export default function StaffManagement() {
                                     const isSelf =
                                         String(member.email).toLowerCase() ===
                                         String(user?.email || '').toLowerCase();
-                                    const currentTitle =
-                                        member.title ||
-                                        ROLE_OPTIONS.find(r => r.value === member.pulsusRole)
-                                            ?.defaultTitle ||
-                                        'Hayvan Bakıcısı / Temizlik Görevlisi';
-
-                                    const titleList = TITLE_OPTIONS.includes(currentTitle)
-                                        ? TITLE_OPTIONS
-                                        : [currentTitle, ...TITLE_OPTIONS];
 
                                     return (
                                         <tr
@@ -300,26 +278,6 @@ export default function StaffManagement() {
                                                         );
                                                     })}
                                                 </div>
-                                            </td>
-
-                                            {/* Duty Title Select */}
-                                            <td className="px-5 py-3.5 whitespace-nowrap">
-                                                <select
-                                                    disabled={!isVet || isSaving}
-                                                    value={currentTitle}
-                                                    onChange={e =>
-                                                        handleQuickUpdate(member, {
-                                                            title: e.target.value
-                                                        })
-                                                    }
-                                                    className="px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                                >
-                                                    {titleList.map(t => (
-                                                        <option key={t} value={t}>
-                                                            {t}
-                                                        </option>
-                                                    ))}
-                                                </select>
                                             </td>
 
                                             {/* Yedek Sorumlu Select */}
