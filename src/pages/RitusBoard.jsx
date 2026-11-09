@@ -1025,7 +1025,7 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
     };
 
     const formatRoleLabel = role =>
-        role === 'vet' ? 'Vet. Hekim' : role === 'technician' ? 'Tekniker' : 'Bakıcı';
+        role === 'vet' ? 'Vet. Hekim' : role === 'technician' ? 'Veteriner Teknikeri' : 'Bakıcı';
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">

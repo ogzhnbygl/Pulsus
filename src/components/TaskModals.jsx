@@ -380,7 +380,7 @@ export function CreateSequaModal({
                                         {m.pulsusRole === 'vet'
                                             ? 'Vet. Hekim'
                                             : m.pulsusRole === 'technician'
-                                              ? 'Tekniker'
+                                              ? 'Veteriner Teknikeri'
                                               : 'Bakıcı'}
                                         {m.onLeaveToday ? ' - 🏖️ İzinli (Yedeğe Devredilir)' : ''})
                                     </option>
@@ -862,7 +862,7 @@ export function ConvertIssueModal({
                             >
                                 {staffList.map(m => (
                                     <option key={m.email} value={m.email}>
-                                        {m.name} ({m.pulsusRole === 'vet' ? 'Vet. Hekim' : m.pulsusRole === 'technician' ? 'Tekniker' : 'Bakıcı'})
+                                        {m.name} ({m.pulsusRole === 'vet' ? 'Vet. Hekim' : m.pulsusRole === 'technician' ? 'Veteriner Teknikeri' : 'Bakıcı'})
                                     </option>
                                 ))}
                             </select>

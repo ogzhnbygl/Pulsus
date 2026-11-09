@@ -95,7 +95,7 @@ export const AuthProvider = ({ children }) => {
                         (data.pulsusRole === 'vet' || data.role === 'admin'
                             ? 'Sorumlu Veteriner Hekim'
                             : data.pulsusRole === 'technician'
-                              ? 'Tekniker'
+                              ? 'Veteriner Teknikeri'
                               : 'Hayvan Bakıcısı / Temizlik Görevlisi')
                 });
                 setLoading(false);

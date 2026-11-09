@@ -128,8 +128,8 @@ export function getRoleBadgeInfo(pulsusRole) {
     }
     if (pulsusRole === 'technician') {
         return {
-            label: 'Tekniker',
-            shortLabel: 'Tekniker',
+            label: 'Veteriner Teknikeri',
+            shortLabel: 'Veteriner Teknikeri',
             className: 'bg-indigo-50 text-indigo-700 border-indigo-200'
         };
     }

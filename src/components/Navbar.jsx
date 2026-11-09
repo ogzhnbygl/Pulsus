@@ -96,7 +96,7 @@ export default function Navbar() {
                                 >
                                     {devProfiles.map(p => (
                                         <option key={p.email} value={p.email}>
-                                            {p.name} ({p.pulsusRole === 'vet' ? 'Vet. Hekim' : p.pulsusRole === 'technician' ? 'Tekniker' : 'Bakıcı'})
+                                            {p.name} ({p.pulsusRole === 'vet' ? 'Vet. Hekim' : p.pulsusRole === 'technician' ? 'Veteriner Teknikeri' : 'Bakıcı'})
                                         </option>
                                     ))}
                                 </select>

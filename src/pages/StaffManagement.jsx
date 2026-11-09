@@ -3,7 +3,7 @@ import {
     Search,
     User,
     Stethoscope,
-    Wrench,
+    Syringe,
     UserCheck,
     Check,
     Trash2,
@@ -24,9 +24,9 @@ const ROLE_OPTIONS = [
     },
     {
         value: 'technician',
-        label: 'Tekniker',
-        defaultTitle: 'Veteriner Sağlık Teknikeri',
-        icon: Wrench,
+        label: 'Veteriner Teknikeri',
+        defaultTitle: 'Veteriner Teknikeri',
+        icon: Syringe,
         activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-300 ring-1 ring-indigo-500/30',
         inactiveClass: 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
     },
