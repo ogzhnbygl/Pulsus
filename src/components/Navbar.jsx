@@ -7,7 +7,6 @@ import {
     BarChart3,
     LayoutGrid,
     LogOut,
-    ShieldCheck,
     Stethoscope,
     Wrench,
     UserCheck
@@ -176,11 +175,6 @@ export default function Navbar() {
                             </NavLink>
                         );
                     })}
-
-                    <div className="ml-auto hidden lg:flex items-center gap-1.5 text-[11px] text-slate-500 py-2 px-2">
-                        <ShieldCheck size={14} className="text-emerald-600 shrink-0" />
-                        <span>Circa İzin Entegrasyonu Aktif</span>
-                    </div>
                 </nav>
             </div>
         </header>
