@@ -904,15 +904,18 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
         }
     };
 
+    const formatRoleLabel = role =>
+        role === 'vet' ? 'Vet. Hekim' : role === 'technician' ? 'Tekniker' : 'Bakıcı';
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden my-8">
-                <div className="px-6 py-4 bg-gradient-to-r from-indigo-700 to-violet-700 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+                <div className="shrink-0 px-5 py-3.5 bg-gradient-to-r from-indigo-700 to-violet-700 text-white flex items-center justify-between">
                     <div>
-                        <h3 className="text-base font-bold">
+                        <h3 className="text-sm sm:text-base font-bold">
                             {isEdit ? 'Ritus Rutin Şablonunu Düzenle' : 'Yeni Ritus Rutin Şablonu Oluştur'}
                         </h3>
-                        <p className="text-xs text-indigo-100">
+                        <p className="text-[11px] text-indigo-100">
                             Sorumlu Veteriner Hekim Yetkisi • Haftalık, Aylık ve 3 Aylık Periyodik Planlayıcı
                         </p>
                     </div>
@@ -925,213 +928,219 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="sm:col-span-2">
-                            <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Rutin Görev Başlığı *
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={title}
-                                onChange={e => setTitle(e.target.value)}
-                                placeholder="Örn: Fare Odaları Kafes & Altlık Değişimi"
-                                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Kategori
-                            </label>
-                            <select
-                                value={category}
-                                onChange={e => setCategory(e.target.value)}
-                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
-                            >
-                                {Object.entries(RITUS_CATEGORIES).map(([k, v]) => (
-                                    <option key={k} value={k}>
-                                        {v.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                            Rutin Açıklaması / SOP Özeti (Opsiyonel)
-                        </label>
-                        <input
-                            type="text"
-                            value={description}
-                            onChange={e => setDescription(e.target.value)}
-                            placeholder="Örn: Tüm IVC kafeslerin altlık, yem ve suluk kontrollerinin yapılarak kayıt altına alınması."
-                            className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Tekrar Periyodu *
-                            </label>
-                            <select
-                                value={frequency}
-                                onChange={e => setFrequency(e.target.value)}
-                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
-                            >
-                                <option value="weekly">Haftalık</option>
-                                <option value="monthly">Aylık (Hafta Ortası Dahil)</option>
-                                <option value="quarterly">3 Aylık (Çeyreklik)</option>
-                            </select>
-                        </div>
-
-                        {frequency === 'weekly' ? (
-                            <div>
+                <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <div className="p-5 space-y-3.5 overflow-y-auto flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="sm:col-span-2">
                                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                                    Haftanın Günleri *
-                                </label>
-                                <div className="flex flex-wrap gap-1">
-                                    {DAYS_OF_WEEK.map(d => (
-                                        <button
-                                            key={d.value}
-                                            type="button"
-                                            onClick={() => toggleDay(d.value)}
-                                            className={`px-2 py-1 rounded-lg text-[11px] font-bold border ${
-                                                daysOfWeek.includes(d.value)
-                                                    ? 'bg-indigo-600 text-white border-indigo-600'
-                                                    : 'bg-white text-slate-600 border-slate-300'
-                                            }`}
-                                        >
-                                            {d.short}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">
-                                    Ayın Günü (1-31) *
+                                    Rutin Görev Başlığı *
                                 </label>
                                 <input
-                                    type="number"
-                                    min={1}
-                                    max={31}
-                                    value={dayOfMonth}
-                                    onChange={e => setDayOfMonth(e.target.value)}
+                                    type="text"
+                                    required
+                                    value={title}
+                                    onChange={e => setTitle(e.target.value)}
+                                    placeholder="Örn: Fare Odaları Kafes & Altlık Değişimi"
                                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
                                 />
                             </div>
-                        )}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Kategori
+                                </label>
+                                <select
+                                    value={category}
+                                    onChange={e => setCategory(e.target.value)}
+                                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                                >
+                                    {Object.entries(RITUS_CATEGORIES).map(([k, v]) => (
+                                        <option key={k} value={k}>
+                                            {v.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
 
                         <div>
                             <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Sabit Görev Saati *
+                                Rutin Açıklaması / SOP Özeti (Opsiyonel)
                             </label>
                             <input
-                                type="time"
-                                required
-                                value={scheduledTime}
-                                onChange={e => setScheduledTime(e.target.value)}
+                                type="text"
+                                value={description}
+                                onChange={e => setDescription(e.target.value)}
+                                placeholder="Örn: Tüm IVC kafeslerin altlık, yem ve suluk kontrollerinin yapılarak kayıt altına alınması."
                                 className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
                             />
                         </div>
-                    </div>
 
-                    {/* Primary & Backup Assignee + Reviewer Chain */}
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-800 mb-1">
-                                1. Asil Görevli Personel *
-                            </label>
-                            <select
-                                value={primaryAssignee}
-                                onChange={e => setPrimaryAssignee(e.target.value)}
-                                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
-                            >
-                                {members.map(m => (
-                                    <option key={m.email} value={m.email}>
-                                        {m.name} ({m.pulsusRole})
-                                    </option>
-                                ))}
-                            </select>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Tekrar Periyodu *
+                                </label>
+                                <select
+                                    value={frequency}
+                                    onChange={e => setFrequency(e.target.value)}
+                                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                                >
+                                    <option value="weekly">Haftalık</option>
+                                    <option value="monthly">Aylık (Hafta Ortası Dahil)</option>
+                                    <option value="quarterly">3 Aylık (Çeyreklik)</option>
+                                </select>
+                            </div>
 
-                            <label className="block text-xs font-bold text-slate-600 mt-2 mb-1">
-                                2. Yedek Görevli (Circa&apos;da İzinliyse Devreye Girer)
-                            </label>
-                            <select
-                                value={backupAssignee || ''}
-                                onChange={e => setBackupAssignee(e.target.value)}
-                                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
-                            >
-                                <option value="">Yedek Yok (Doğrudan Vet. Hekime Düşsün)</option>
-                                {members.map(m => (
-                                    <option key={m.email} value={m.email}>
-                                        {m.name} ({m.pulsusRole})
-                                    </option>
-                                ))}
-                            </select>
+                            {frequency === 'weekly' ? (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Haftanın Günleri *
+                                    </label>
+                                    <div className="flex flex-wrap gap-1">
+                                        {DAYS_OF_WEEK.map(d => (
+                                            <button
+                                                key={d.value}
+                                                type="button"
+                                                onClick={() => toggleDay(d.value)}
+                                                className={`px-2 py-1 rounded-lg text-[11px] font-bold border ${
+                                                    daysOfWeek.includes(d.value)
+                                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                                        : 'bg-white text-slate-600 border-slate-300'
+                                                }`}
+                                            >
+                                                {d.short}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Ayın Günü (1-31) *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={31}
+                                        value={dayOfMonth}
+                                        onChange={e => setDayOfMonth(e.target.value)}
+                                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                                    />
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Sabit Görev Saati *
+                                </label>
+                                <input
+                                    type="time"
+                                    required
+                                    value={scheduledTime}
+                                    onChange={e => setScheduledTime(e.target.value)}
+                                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                                />
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="block text-xs font-bold text-slate-800 mb-1">
-                                3. Asil Denetçi (Kontrol Eden) *
-                            </label>
-                            <select
-                                value={primaryReviewer}
-                                onChange={e => setPrimaryReviewer(e.target.value)}
-                                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
-                            >
-                                {members
-                                    .filter(m => m.pulsusRole !== 'caretaker')
-                                    .map(m => (
+                        {/* Primary & Backup Assignee + Reviewer Chain (Aligned 2x2 Grid) */}
+                        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2.5">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-800 mb-1 truncate">
+                                    1. Asil Görevli Personel *
+                                </label>
+                                <select
+                                    value={primaryAssignee}
+                                    onChange={e => setPrimaryAssignee(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                                >
+                                    {members.map(m => (
                                         <option key={m.email} value={m.email}>
-                                            {m.name} ({m.pulsusRole})
+                                            {m.name} ({formatRoleLabel(m.pulsusRole)})
                                         </option>
                                     ))}
-                            </select>
+                                </select>
+                            </div>
 
-                            <label className="block text-xs font-bold text-slate-600 mt-2 mb-1">
-                                4. Yedek Denetçi (Circa&apos;da İzinliyse)
-                            </label>
-                            <select
-                                value={backupReviewer || ''}
-                                onChange={e => setBackupReviewer(e.target.value)}
-                                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
-                            >
-                                <option value="">Yedek Denetçi Yok (Vet. Hekime Düşsün)</option>
-                                {members
-                                    .filter(m => m.pulsusRole !== 'caretaker')
-                                    .map(m => (
+                            <div>
+                                <label className="block text-xs font-bold text-slate-800 mb-1 truncate">
+                                    3. Asil Denetçi (Kontrol Eden) *
+                                </label>
+                                <select
+                                    value={primaryReviewer}
+                                    onChange={e => setPrimaryReviewer(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                                >
+                                    {members
+                                        .filter(m => m.pulsusRole !== 'caretaker')
+                                        .map(m => (
+                                            <option key={m.email} value={m.email}>
+                                                {m.name} ({formatRoleLabel(m.pulsusRole)})
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1 truncate">
+                                    2. Yedek Görevli (Circa&apos;da İzinliyse)
+                                </label>
+                                <select
+                                    value={backupAssignee || ''}
+                                    onChange={e => setBackupAssignee(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                                >
+                                    <option value="">Yedek Yok (Vet. Hekime Düşsün)</option>
+                                    {members.map(m => (
                                         <option key={m.email} value={m.email}>
-                                            {m.name} ({m.pulsusRole})
+                                            {m.name} ({formatRoleLabel(m.pulsusRole)})
                                         </option>
                                     ))}
-                            </select>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1 truncate">
+                                    4. Yedek Denetçi (Circa&apos;da İzinliyse)
+                                </label>
+                                <select
+                                    value={backupReviewer || ''}
+                                    onChange={e => setBackupReviewer(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                                >
+                                    <option value="">Yedek Yok (Vet. Hekime Düşsün)</option>
+                                    {members
+                                        .filter(m => m.pulsusRole !== 'caretaker')
+                                        .map(m => (
+                                            <option key={m.email} value={m.email}>
+                                                {m.name} ({formatRoleLabel(m.pulsusRole)})
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
                         </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Alt Kontrol Listesi (Her satıra 1 adım)
+                            </label>
+                            <textarea
+                                rows={2}
+                                value={checklistText}
+                                onChange={e => setChecklistText(e.target.value)}
+                                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl"
+                            />
+                        </div>
+
+                        {error && (
+                            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                                {error}
+                            </div>
+                        )}
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                            Alt Kontrol Listesi (Her satıra 1 adım)
-                        </label>
-                        <textarea
-                            rows={3}
-                            value={checklistText}
-                            onChange={e => setChecklistText(e.target.value)}
-                            className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-                        />
-                    </div>
-
-                    {error && (
-                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
-                            {error}
-                        </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                        <div className="inline-flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                    <div className="shrink-0 px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                        <div className="inline-flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 text-xs">
                             <span className="px-2 text-[11px] font-bold text-slate-500">
                                 Uygula:
                             </span>
@@ -1163,7 +1172,7 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70"
                             >
                                 Vazgeç
                             </button>

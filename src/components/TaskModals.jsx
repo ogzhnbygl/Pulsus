@@ -128,12 +128,12 @@ export function CreateSequaModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden my-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className="px-6 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+                <div className="shrink-0 px-5 py-3.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
                     <div>
-                        <h3 className="text-base font-bold flex items-center gap-2">
+                        <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
                             {isCaretaker ? (
                                 <>
                                     <AlertTriangle size={18} className="text-amber-400" />
@@ -146,7 +146,7 @@ export function CreateSequaModal({
                                 </>
                             )}
                         </h3>
-                        <p className="text-xs text-slate-300 mt-0.5">
+                        <p className="text-[11px] text-slate-300 mt-0.5">
                             {isCaretaker
                                 ? 'Bakıcı/Temizlik personeli olarak karşılaştığınız aksaklıkları Teknikere veya Veteriner Hekime bildirin.'
                                 : 'Anlık görev ataması, hekim muayene talebi veya dış birim arıza takibi başlatın.'}
@@ -161,7 +161,7 @@ export function CreateSequaModal({
                     </button>
                 </div>
 
-                <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleFormSubmit} className="p-5 space-y-3.5 overflow-y-auto flex-1">
                     {sourceRitusRun && (
                         <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-start gap-2.5 text-xs text-indigo-900">
                             <Link2 size={16} className="text-indigo-600 shrink-0 mt-0.5" />

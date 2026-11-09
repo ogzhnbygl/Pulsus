@@ -22,7 +22,7 @@ export default function Navbar() {
     const navItems = [
         {
             to: '/',
-            label: 'Nabız',
+            label: 'Pulsus',
             subtitle: 'Birleşik Pano & Odak',
             icon: Activity,
             activeColor: 'border-rose-600 text-rose-700 bg-rose-50/70'
