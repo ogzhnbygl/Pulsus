@@ -68,7 +68,10 @@ export default async function handler(req, res) {
                 ? req.query.date
                 : new Date().toISOString().slice(0, 10);
 
-            const members = await membersCol.find({}).sort({ pulsusRole: 1, name: 1 }).toArray();
+            const members = await membersCol
+                .find({ isActive: { $ne: false } })
+                .sort({ pulsusRole: 1, name: 1 })
+                .toArray();
             const circaDb = client.db(getDbName('Circa_db'));
             const approvedLeaves = await circaDb
                 .collection('time_offs')
@@ -169,6 +172,15 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Kendi aktif personel kaydınızı silemezsiniz.' });
         }
         await membersCol.deleteOne({ email: emailParam });
+        // Also revoke 'pulsus' module access in Apex_db.users so they don't get re-synced
+        try {
+            const apexDb = client.db(getDbName('Apex_db'));
+            await apexDb
+                .collection('users')
+                .updateOne({ email: emailParam }, { $pull: { apps: 'pulsus' } });
+        } catch {
+            // Ignore cross-db update error if any
+        }
         return res.status(200).json({ ok: true });
     }
 

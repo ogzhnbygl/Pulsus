@@ -41,14 +41,6 @@ export const DEFAULT_LAB_MEMBERS = [
         name: 'Yusuf Enes Işık',
         pulsusRole: 'caretaker',
         title: 'Hayvan Bakıcısı / Temizlik Görevlisi',
-        defaultBackupEmail: 'onur.yesilyurt@medeniyet.edu.tr',
-        isActive: true
-    },
-    {
-        email: 'onur.yesilyurt@medeniyet.edu.tr',
-        name: 'Onur Yeşilyurt',
-        pulsusRole: 'caretaker',
-        title: 'Hayvan Bakıcısı / Temizlik Görevlisi',
         defaultBackupEmail: 'gokhan.sert@medeniyet.edu.tr',
         isActive: true
     }
@@ -98,27 +90,43 @@ export async function ensureDefaultMembers(db, client = null) {
         );
     }
 
-    // Also sync any user from Apex_db.users into Pulsus_db.members
+    // Sync with Apex_db.users: only users with 'pulsus' access or 'admin' role belong in Pulsus
     if (client) {
         try {
             const apexDb = client.db(getDbName('Apex_db'));
-            const apexUsers = await apexDb.collection('users').find({}).toArray();
+            const allApexUsers = await apexDb.collection('users').find({}).toArray();
 
-            for (const u of apexUsers) {
-                const emailLower = String(u.email || '').trim().toLowerCase();
-                if (!emailLower) continue;
-                const exists = await membersCol.findOne({ email: emailLower });
-                if (!exists) {
-                    const profile = resolveDefaultMemberProfile(
-                        emailLower,
-                        u.name,
-                        u.role === 'admin'
-                    );
-                    await membersCol.insertOne({
-                        ...profile,
-                        createdAt: now,
-                        updatedAt: now
-                    });
+            if (allApexUsers.length > 0) {
+                const revokedEmails = [];
+                for (const u of allApexUsers) {
+                    const emailLower = String(u.email || '').trim().toLowerCase();
+                    if (!emailLower) continue;
+                    const hasPulsusAccess =
+                        u.role === 'admin' ||
+                        (Array.isArray(u.apps) &&
+                            u.apps.some(a => String(a).toLowerCase() === 'pulsus'));
+
+                    if (hasPulsusAccess) {
+                        const exists = await membersCol.findOne({ email: emailLower });
+                        if (!exists) {
+                            const profile = resolveDefaultMemberProfile(
+                                emailLower,
+                                u.name,
+                                u.role === 'admin'
+                            );
+                            await membersCol.insertOne({
+                                ...profile,
+                                createdAt: now,
+                                updatedAt: now
+                            });
+                        }
+                    } else {
+                        revokedEmails.push(emailLower);
+                    }
+                }
+
+                if (revokedEmails.length > 0) {
+                    await membersCol.deleteMany({ email: { $in: revokedEmails } });
                 }
             }
         } catch {

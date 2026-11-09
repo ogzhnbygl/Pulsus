@@ -6,7 +6,8 @@ import {
     Stethoscope,
     Wrench,
     UserCheck,
-    Check
+    Check,
+    Trash2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, DEFAULT_STAFF_DIRECTORY } from '../utils/pulsusHelpers';
@@ -14,7 +15,7 @@ import { apiFetch, DEFAULT_STAFF_DIRECTORY } from '../utils/pulsusHelpers';
 const ROLE_OPTIONS = [
     {
         value: 'vet',
-        label: 'Sorumlu Vet. Hekim',
+        label: 'Vet. Hekim',
         defaultTitle: 'Sorumlu Veteriner Hekim',
         icon: Stethoscope,
         activeClass: 'bg-rose-50 text-rose-700 border-rose-300 ring-1 ring-rose-500/30',
@@ -22,7 +23,7 @@ const ROLE_OPTIONS = [
     },
     {
         value: 'technician',
-        label: 'Tekniker / Denetçi',
+        label: 'Tekniker',
         defaultTitle: 'Veteriner Sağlık Teknikeri',
         icon: Wrench,
         activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-300 ring-1 ring-indigo-500/30',
@@ -30,7 +31,7 @@ const ROLE_OPTIONS = [
     },
     {
         value: 'caretaker',
-        label: 'Bakıcı / Temizlik',
+        label: 'Bakıcı',
         defaultTitle: 'Hayvan Bakıcısı / Temizlik Görevlisi',
         icon: UserCheck,
         activeClass: 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-1 ring-emerald-500/30',
@@ -46,7 +47,7 @@ const TITLE_OPTIONS = [
 ];
 
 export default function StaffManagement() {
-    const { isVet, refreshUser } = useAuth();
+    const { user, isVet, refreshUser } = useAuth();
     const [members, setMembers] = useState(DEFAULT_STAFF_DIRECTORY);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -57,7 +58,7 @@ export default function StaffManagement() {
         setLoading(true);
         try {
             const res = await apiFetch('/api/members');
-            if (res?.members?.length) {
+            if (res?.members) {
                 setMembers(res.members);
             }
         } catch (err) {
@@ -76,7 +77,6 @@ export default function StaffManagement() {
         const nextRole = updates.pulsusRole ?? member.pulsusRole;
         let nextTitle = updates.title ?? member.title;
 
-        // If role changed and title wasn't explicitly changed, auto-pick matching title
         if (updates.pulsusRole && !updates.title) {
             const matchedRole = ROLE_OPTIONS.find(r => r.value === updates.pulsusRole);
             if (matchedRole) {
@@ -89,7 +89,6 @@ export default function StaffManagement() {
                 ? updates.defaultBackupEmail
                 : member.defaultBackupEmail || '';
 
-        // Optimistic UI update
         setMembers(prev =>
             prev.map(m =>
                 m.email === member.email
@@ -130,6 +129,33 @@ export default function StaffManagement() {
         }
     };
 
+    const handleRemoveFromPulsus = async member => {
+        if (!isVet) return;
+        if (String(member.email).toLowerCase() === String(user?.email || '').toLowerCase()) {
+            alert('Kendi aktif yönetici hesabınızı listeden çıkaramazsınız.');
+            return;
+        }
+        if (
+            !window.confirm(
+                `${member.name || member.email} adlı kişiyi Pulsus personel listesinden çıkarmak istediğinize emin misiniz?`
+            )
+        ) {
+            return;
+        }
+
+        setSavingEmail(member.email);
+        try {
+            await apiFetch(`/api/members?email=${encodeURIComponent(member.email)}`, {
+                method: 'DELETE'
+            });
+            setMembers(prev => prev.filter(m => m.email !== member.email));
+        } catch (err) {
+            alert(err.message || 'Personel listeden çıkarılamadı.');
+        } finally {
+            setSavingEmail(null);
+        }
+    };
+
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const filteredMembers = members.filter(m => {
         if (!normalizedQuery) return true;
@@ -147,12 +173,12 @@ export default function StaffManagement() {
                         Personel ve Rol Yönetimi
                     </h1>
                     <p className="mt-1 text-sm text-slate-500">
-                        Veritabanındaki kullanıcıların yetki rollerini, görev ünvanlarını ve yedek sorumlularını tek tıkla yönetin
+                        Pulsus modülüne erişim izni olan personelin yetki rollerini, görev ünvanlarını ve yedek sorumlularını yönetin
                     </p>
                 </div>
                 <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 border border-indigo-100 text-xs font-semibold text-indigo-700">
                     <Shield size={15} />
-                    <span>Değişiklikler seçtiğiniz anda otomatik kaydedilir</span>
+                    <span>Apex&apos;te Pulsus yetkisi olan personel otomatik listelenir</span>
                 </div>
             </div>
 
@@ -177,11 +203,11 @@ export default function StaffManagement() {
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
                             <tr>
-                                <th className="px-6 py-4">Kullanıcı</th>
-                                <th className="px-6 py-4">Yetki Rolü (Tıklayarak Seçin)</th>
-                                <th className="px-6 py-4">Görev Ünvanı</th>
-                                <th className="px-6 py-4">Yedek Sorumlu</th>
-                                <th className="px-6 py-4 text-right">Durum</th>
+                                <th className="px-5 py-3.5">Kullanıcı</th>
+                                <th className="px-5 py-3.5">Yetki Rolü</th>
+                                <th className="px-5 py-3.5">Görev Ünvanı</th>
+                                <th className="px-5 py-3.5">Yedek Sorumlu</th>
+                                <th className="px-5 py-3.5 text-right">İşlem</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -207,6 +233,9 @@ export default function StaffManagement() {
                                 filteredMembers.map(member => {
                                     const isSaving = savingEmail === member.email;
                                     const isSaved = savedEmail === member.email;
+                                    const isSelf =
+                                        String(member.email).toLowerCase() ===
+                                        String(user?.email || '').toLowerCase();
                                     const currentTitle =
                                         member.title ||
                                         ROLE_OPTIONS.find(r => r.value === member.pulsusRole)
@@ -223,10 +252,10 @@ export default function StaffManagement() {
                                             className="hover:bg-slate-50/80 transition-colors"
                                         >
                                             {/* User Info */}
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-5 py-3.5 whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                                                        <User size={17} />
+                                                    <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                                                        <User size={16} />
                                                     </div>
                                                     <div>
                                                         <div className="font-semibold text-slate-900">
@@ -239,9 +268,9 @@ export default function StaffManagement() {
                                                 </div>
                                             </td>
 
-                                            {/* Apex-style Clickable Role Pills */}
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex flex-wrap items-center gap-2">
+                                            {/* Single-line Clickable Role Pills */}
+                                            <td className="px-5 py-3.5 whitespace-nowrap">
+                                                <div className="inline-flex items-center gap-1.5">
                                                     {ROLE_OPTIONS.map(opt => {
                                                         const IconComp = opt.icon;
                                                         const active =
@@ -259,13 +288,13 @@ export default function StaffManagement() {
                                                                     }
                                                                 }}
                                                                 aria-pressed={active}
-                                                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap ${
+                                                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all whitespace-nowrap ${
                                                                     active
                                                                         ? opt.activeClass
                                                                         : opt.inactiveClass
                                                                 } disabled:opacity-60`}
                                                             >
-                                                                <IconComp size={13} />
+                                                                <IconComp size={12} />
                                                                 {opt.label}
                                                             </button>
                                                         );
@@ -274,7 +303,7 @@ export default function StaffManagement() {
                                             </td>
 
                                             {/* Duty Title Select */}
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-5 py-3.5 whitespace-nowrap">
                                                 <select
                                                     disabled={!isVet || isSaving}
                                                     value={currentTitle}
@@ -293,8 +322,8 @@ export default function StaffManagement() {
                                                 </select>
                                             </td>
 
-                                            {/* Default Backup Select */}
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            {/* Yedek Sorumlu Select */}
+                                            <td className="px-5 py-3.5 whitespace-nowrap">
                                                 <select
                                                     disabled={!isVet || isSaving}
                                                     value={member.defaultBackupEmail || ''}
@@ -323,26 +352,42 @@ export default function StaffManagement() {
                                                 </select>
                                             </td>
 
-                                            {/* Save / Leave Status */}
-                                            <td className="px-6 py-4 text-right whitespace-nowrap">
-                                                {isSaving ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                                                        Kaydediliyor...
-                                                    </span>
-                                                ) : isSaved ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                                                        <Check size={13} />
-                                                        Kaydedildi
-                                                    </span>
-                                                ) : member.onLeaveToday ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                                                        🏖️ Bugün İzinli
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                                                        Aktif
-                                                    </span>
-                                                )}
+                                            {/* Status + Remove Action */}
+                                            <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                                                <div className="inline-flex items-center justify-end gap-2">
+                                                    {isSaving ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                                            Kaydediliyor...
+                                                        </span>
+                                                    ) : isSaved ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                                            <Check size={13} />
+                                                            Kaydedildi
+                                                        </span>
+                                                    ) : member.onLeaveToday ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                                            🏖️ İzinli
+                                                        </span>
+                                                    ) : null}
+
+                                                    {isVet && (
+                                                        <button
+                                                            type="button"
+                                                            disabled={isSelf || isSaving}
+                                                            onClick={() =>
+                                                                handleRemoveFromPulsus(member)
+                                                            }
+                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                                            title={
+                                                                isSelf
+                                                                    ? 'Kendi hesabınızı listeden çıkaramazsınız'
+                                                                    : 'Listeden çıkar (Pulsus erişimini kaldır)'
+                                                            }
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

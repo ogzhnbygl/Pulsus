@@ -34,13 +34,6 @@ export const DEFAULT_STAFF_DIRECTORY = [
         name: 'Yusuf Enes Işık',
         pulsusRole: 'caretaker',
         title: 'Hayvan Bakıcısı / Temizlik Görevlisi',
-        defaultBackupEmail: 'onur.yesilyurt@medeniyet.edu.tr'
-    },
-    {
-        email: 'onur.yesilyurt@medeniyet.edu.tr',
-        name: 'Onur Yeşilyurt',
-        pulsusRole: 'caretaker',
-        title: 'Hayvan Bakıcısı / Temizlik Görevlisi',
         defaultBackupEmail: 'gokhan.sert@medeniyet.edu.tr'
     }
 ];
