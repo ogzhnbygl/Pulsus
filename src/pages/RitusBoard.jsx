@@ -237,7 +237,7 @@ export default function RitusBoard() {
                                     : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
-                            📋 Haftalık Operasyon Panosu
+                            📋 Operasyon Panosu
                         </button>
                         <button
                             type="button"
@@ -272,15 +272,15 @@ export default function RitusBoard() {
             {activeSubTab === 'kanban' ? (
                 <>
                     {/* Week Selector, Friday 16:30 Trigger & Filters */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+                    <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2.5">
                         <div className="flex flex-wrap items-center gap-2">
-                            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                            <div className="inline-flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200">
                                 <button
                                     type="button"
                                     onClick={() => setSelectedWeekMode('current')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
                                         selectedWeekMode === 'current'
-                                            ? 'bg-indigo-600 text-white'
+                                            ? 'bg-indigo-600 text-white shadow-2xs'
                                             : 'text-slate-600 hover:text-slate-900'
                                     }`}
                                 >
@@ -289,13 +289,13 @@ export default function RitusBoard() {
                                 <button
                                     type="button"
                                     onClick={() => setSelectedWeekMode('next')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
                                         selectedWeekMode === 'next'
-                                            ? 'bg-indigo-600 text-white'
+                                            ? 'bg-indigo-600 text-white shadow-2xs'
                                             : 'text-slate-600 hover:text-slate-900'
                                     }`}
                                 >
-                                    Gelecek Hafta Paketi ({formatWeekRangeLabel(ritusState.nextWeekStart)})
+                                    Gelecek Hafta ({formatWeekRangeLabel(ritusState.nextWeekStart)})
                                 </button>
                             </div>
 
@@ -303,30 +303,31 @@ export default function RitusBoard() {
                                 type="button"
                                 disabled={distributing}
                                 onClick={() => handleTriggerDistribution('next_week')}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-violet-50 text-violet-800 border border-violet-200 hover:bg-violet-100"
-                                title="Cuma 16:30 dağıtım motorunu gelecek hafta için çalıştır (Hafta ortası ay/çeyrek geçişleri dahil)"
+                                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-violet-50 text-violet-800 border border-violet-200 hover:bg-violet-100 whitespace-nowrap"
+                                title="Cuma 16:30 dağıtım motorunu gelecek hafta için çalıştır"
                             >
                                 <CalendarClock size={14} />
-                                Cuma 16:30 Gelecek Hafta Paketini Dağıt
+                                Gelecek Haftayı Dağıt
                             </button>
 
                             <button
                                 type="button"
                                 disabled={distributing}
                                 onClick={handleSyncCircaLeaves}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
+                                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 whitespace-nowrap"
+                                title="Circa izinlerini ve yedek sorumluları senkronize et"
                             >
                                 <Palmtree size={14} />
-                                Circa İzin &amp; Yedekleri Senkronize Et
+                                İzinleri Senkronize Et
                             </button>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                            <SlidersHorizontal size={14} className="text-slate-400" />
+                        <div className="flex items-center gap-2 ml-auto">
+                            <SlidersHorizontal size={14} className="text-slate-400 shrink-0" />
                             <select
                                 value={filterAssignee}
                                 onChange={e => setFilterAssignee(e.target.value)}
-                                className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
+                                className="h-9 px-3 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 whitespace-nowrap"
                             >
                                 <option value="ALL">Tüm Personel</option>
                                 {members.map(m => (
@@ -339,9 +340,9 @@ export default function RitusBoard() {
                             <select
                                 value={filterFrequency}
                                 onChange={e => setFilterFrequency(e.target.value)}
-                                className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
+                                className="h-9 px-3 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 whitespace-nowrap"
                             >
-                                <option value="ALL">Tüm Periyotlar (Haftalık/Aylık/3 Aylık)</option>
+                                <option value="ALL">Tüm Periyotlar</option>
                                 <option value="weekly">Haftalık</option>
                                 <option value="monthly">Aylık</option>
                                 <option value="quarterly">3 Aylık</option>
@@ -877,7 +878,9 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
     const [description, setDescription] = useState(initialTemplate?.description || '');
     const [category, setCategory] = useState(initialTemplate?.category || 'cleaning');
     const [frequency, setFrequency] = useState(initialTemplate?.frequency || 'weekly');
-    const [daysOfWeek, setDaysOfWeek] = useState(initialTemplate?.daysOfWeek || [1]);
+    const [daysOfWeek, setDaysOfWeek] = useState(
+        initialTemplate?.daysOfWeek?.length ? [initialTemplate.daysOfWeek[0]] : [1]
+    );
     const [dayOfMonth, setDayOfMonth] = useState(initialTemplate?.dayOfMonth || 15);
     const [scheduledTime, setScheduledTime] = useState(initialTemplate?.scheduledTime || '09:00');
     const [primaryAssignee, setPrimaryAssignee] = useState(
@@ -914,11 +917,7 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
     };
 
     const toggleDay = d => {
-        if (daysOfWeek.includes(d)) {
-            if (daysOfWeek.length > 1) setDaysOfWeek(daysOfWeek.filter(x => x !== d));
-        } else {
-            setDaysOfWeek([...daysOfWeek, d].sort((a, b) => a - b));
-        }
+        setDaysOfWeek([d]);
     };
 
     const handleSubmit = async e => {
@@ -1050,7 +1049,7 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
                             {frequency === 'weekly' ? (
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        Haftanın Günleri *
+                                        Haftanın Günü *
                                     </label>
                                     <div className="flex flex-wrap gap-1">
                                         {DAYS_OF_WEEK.map(d => (

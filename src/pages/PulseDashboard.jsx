@@ -588,8 +588,8 @@ export default function PulseDashboard() {
                             <div>
                                 <h2 className="text-sm font-extrabold text-slate-900">
                                     {isCaretaker
-                                        ? `Haftalık Rutin Görevlerim (${myRitusRuns.length})`
-                                        : `Ritus — Haftalık Rutin Görevlerim (${myRitusRuns.length})`}
+                                        ? `Rutin Görevlerim (${myRitusRuns.length})`
+                                        : `Ritus — Rutin Görevlerim (${myRitusRuns.length})`}
                                 </h2>
                                 <p className="text-[11px] text-slate-500">
                                     Üzerinize atanan veya yedek olarak devraldığınız periyodik işler
