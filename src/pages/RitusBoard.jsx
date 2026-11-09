@@ -60,6 +60,18 @@ export default function RitusBoard() {
     const [templateModalOpen, setTemplateModalOpen] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState(null);
 
+    const refreshRunsOnly = useCallback(
+        async (weekOverride = selectedWeekMode) => {
+            try {
+                const runsRes = await apiFetch(`/api/ritus/runs?week=${weekOverride}`);
+                setRitusState(runsRes);
+            } catch (err) {
+                console.error('Ritus görev kartları yenilenemedi:', err);
+            }
+        },
+        [selectedWeekMode]
+    );
+
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
@@ -94,10 +106,11 @@ export default function RitusBoard() {
                     scope: target
                 })
             });
+            const nextMode = target === 'next_week' ? 'next' : selectedWeekMode;
             if (target === 'next_week') {
                 setSelectedWeekMode('next');
             }
-            await loadData();
+            await refreshRunsOnly(nextMode);
         } catch (err) {
             alert(err.message || 'Dağıtım sırasında hata oluştu.');
         } finally {
@@ -115,7 +128,7 @@ export default function RitusBoard() {
                     weekStart: ritusState.weekStart
                 })
             });
-            await loadData();
+            await refreshRunsOnly();
         } catch (err) {
             alert(err.message || 'Circa izin senkronizasyonu başarısız oldu.');
         } finally {
@@ -125,11 +138,16 @@ export default function RitusBoard() {
 
     const handleRunPatch = async (runId, action, extra = {}) => {
         try {
-            await apiFetch('/api/ritus/runs', {
+            const res = await apiFetch('/api/ritus/runs', {
                 method: 'PATCH',
                 body: JSON.stringify({ id: String(runId), action, ...extra })
             });
-            await loadData();
+            if (res?.run) {
+                setRitusState(prev => ({
+                    ...prev,
+                    runs: (prev.runs || []).map(r => (String(r._id) === String(runId) ? res.run : r))
+                }));
+            }
         } catch (err) {
             alert(err.message || 'İşlem başarısız oldu.');
         }
@@ -139,7 +157,13 @@ export default function RitusBoard() {
         if (!window.confirm('Bu rutin şablonunu ve aktif haftalık kartlarını silmek istediğinize emin misiniz?')) return;
         try {
             await apiFetch(`/api/ritus/templates?id=${templateId}&updateScope=current_week`, { method: 'DELETE' });
-            await loadData();
+            setTemplates(prev => prev.filter(t => String(t._id) !== String(templateId)));
+            setRitusState(prev => ({
+                ...prev,
+                runs: (prev.runs || []).filter(
+                    r => !(String(r.templateId) === String(templateId) && r.status !== 'done')
+                )
+            }));
         } catch (err) {
             alert(err.message || 'Şablon silinemedi.');
         }
@@ -149,7 +173,10 @@ export default function RitusBoard() {
         if (!window.confirm('Bu görev kartını panodan silmek istediğinize emin misiniz?')) return;
         try {
             await apiFetch(`/api/ritus/runs?id=${runId}`, { method: 'DELETE' });
-            await loadData();
+            setRitusState(prev => ({
+                ...prev,
+                runs: (prev.runs || []).filter(r => String(r._id) !== String(runId))
+            }));
         } catch (err) {
             alert(err.message || 'Görev kartı silinemedi.');
         }
@@ -829,9 +856,23 @@ export default function RitusBoard() {
                     onClose={() => setTemplateModalOpen(false)}
                     initialTemplate={editingTemplate}
                     members={members}
-                    onSaved={async () => {
+                    onSaved={async savedRes => {
                         setTemplateModalOpen(false);
-                        await loadData();
+                        if (savedRes?.template) {
+                            setTemplates(prev => {
+                                const exists = prev.some(
+                                    t => String(t._id) === String(savedRes.template._id)
+                                );
+                                return exists
+                                    ? prev.map(t =>
+                                          String(t._id) === String(savedRes.template._id)
+                                              ? savedRes.template
+                                              : t
+                                      )
+                                    : [...prev, savedRes.template];
+                            });
+                        }
+                        await refreshRunsOnly();
                     }}
                 />
             )}
@@ -843,11 +884,18 @@ export default function RitusBoard() {
                 actionType={actionModal.actionType}
                 members={members}
                 onSubmit={async payload => {
-                    await apiFetch('/api/ritus/runs', {
+                    const res = await apiFetch('/api/ritus/runs', {
                         method: 'PATCH',
                         body: JSON.stringify(payload)
                     });
-                    await loadData();
+                    if (res?.run) {
+                        setRitusState(prev => ({
+                            ...prev,
+                            runs: (prev.runs || []).map(r =>
+                                String(r._id) === String(res.run._id) ? res.run : r
+                            )
+                        }));
+                    }
                 }}
             />
 
@@ -858,11 +906,26 @@ export default function RitusBoard() {
                 members={members}
                 sourceRitusRun={spawnSequaModal.run}
                 onSubmit={async payload => {
-                    await apiFetch('/api/sequa/tasks', {
+                    const res = await apiFetch('/api/sequa/tasks', {
                         method: 'POST',
                         body: JSON.stringify(payload)
                     });
-                    await loadData();
+                    if (res?.task && payload.sourceRitusRunId) {
+                        setRitusState(prev => ({
+                            ...prev,
+                            runs: (prev.runs || []).map(r =>
+                                String(r._id) === String(payload.sourceRitusRunId)
+                                    ? {
+                                          ...r,
+                                          linkedSequaTaskIds: [
+                                              ...(r.linkedSequaTaskIds || []),
+                                              String(res.task._id)
+                                          ]
+                                      }
+                                    : r
+                            )
+                        }));
+                    }
                 }}
             />
         </div>
@@ -944,11 +1007,11 @@ function RitusTemplateModal({ isOpen, onClose, initialTemplate, members, onSaved
                 updateScope
             };
 
-            await apiFetch('/api/ritus/templates', {
+            const savedRes = await apiFetch('/api/ritus/templates', {
                 method: isEdit ? 'PUT' : 'POST',
                 body: JSON.stringify(payload)
             });
-            await onSaved();
+            await onSaved(savedRes);
         } catch (err) {
             setError(err.message || 'Şablon kaydedilirken hata oluştu.');
         } finally {

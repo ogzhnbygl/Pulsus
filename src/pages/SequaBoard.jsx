@@ -62,11 +62,15 @@ export default function SequaBoard() {
 
     const handlePatchTask = async (taskId, action, extra = {}) => {
         try {
-            await apiFetch('/api/sequa/tasks', {
+            const res = await apiFetch('/api/sequa/tasks', {
                 method: 'PATCH',
                 body: JSON.stringify({ id: String(taskId), action, ...extra })
             });
-            await loadData();
+            if (res?.task) {
+                setTasks(prev =>
+                    prev.map(t => (String(t._id) === String(taskId) ? res.task : t))
+                );
+            }
         } catch (err) {
             alert(err.message || 'İşlem başarısız oldu.');
         }
@@ -76,7 +80,7 @@ export default function SequaBoard() {
         if (!window.confirm('Bu Sequa görev kaydını silmek istediğinize emin misiniz?')) return;
         try {
             await apiFetch(`/api/sequa/tasks?id=${taskId}`, { method: 'DELETE' });
-            await loadData();
+            setTasks(prev => prev.filter(t => String(t._id) !== String(taskId)));
         } catch (err) {
             alert(err.message || 'Görev silinemedi.');
         }
@@ -486,11 +490,19 @@ export default function SequaBoard() {
                     initialTaskType={initialModalType}
                     initialTask={editingTask}
                     onSubmit={async payload => {
-                        await apiFetch('/api/sequa/tasks', {
+                        const res = await apiFetch('/api/sequa/tasks', {
                             method: editingTask ? 'PATCH' : 'POST',
                             body: JSON.stringify(payload)
                         });
-                        await loadData();
+                        if (res?.task) {
+                            setTasks(prev =>
+                                editingTask
+                                    ? prev.map(t =>
+                                          String(t._id) === String(res.task._id) ? res.task : t
+                                      )
+                                    : [res.task, ...prev]
+                            );
+                        }
                     }}
                 />
             )}
@@ -501,11 +513,17 @@ export default function SequaBoard() {
                 task={convertModal.task}
                 members={members}
                 onSubmit={async payload => {
-                    await apiFetch('/api/sequa/tasks', {
+                    const res = await apiFetch('/api/sequa/tasks', {
                         method: 'PATCH',
                         body: JSON.stringify(payload)
                     });
-                    await loadData();
+                    if (res?.task) {
+                        setTasks(prev =>
+                            prev.map(t =>
+                                String(t._id) === String(res.task._id) ? res.task : t
+                            )
+                        );
+                    }
                 }}
             />
         </div>

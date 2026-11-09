@@ -79,11 +79,18 @@ export default function PulseDashboard() {
 
     const handleRitusQuickAction = async (runId, action, extra = {}) => {
         try {
-            await apiFetch('/api/ritus/runs', {
+            const res = await apiFetch('/api/ritus/runs', {
                 method: 'PATCH',
                 body: JSON.stringify({ id: String(runId), action, ...extra })
             });
-            await loadAll(true);
+            if (res?.run) {
+                setRitusData(prev => ({
+                    ...prev,
+                    runs: (prev.runs || []).map(r =>
+                        String(r._id) === String(runId) ? res.run : r
+                    )
+                }));
+            }
         } catch (err) {
             alert(err.message || 'Ritus işlemi başarısız oldu.');
         }
@@ -91,22 +98,28 @@ export default function PulseDashboard() {
 
     const handleSequaQuickAction = async (taskId, action, extra = {}) => {
         try {
-            await apiFetch('/api/sequa/tasks', {
+            const res = await apiFetch('/api/sequa/tasks', {
                 method: 'PATCH',
                 body: JSON.stringify({ id: String(taskId), action, ...extra })
             });
-            await loadAll(true);
+            if (res?.task) {
+                setSequaTasks(prev =>
+                    prev.map(t => (String(t._id) === String(taskId) ? res.task : t))
+                );
+            }
         } catch (err) {
             alert(err.message || 'Sequa işlemi başarısız oldu.');
         }
     };
 
     const handleCreateSequa = async payload => {
-        await apiFetch('/api/sequa/tasks', {
+        const res = await apiFetch('/api/sequa/tasks', {
             method: 'POST',
             body: JSON.stringify(payload)
         });
-        await loadAll(true);
+        if (res?.task) {
+            setSequaTasks(prev => [res.task, ...prev]);
+        }
     };
 
     const myEmail = String(user?.email || '').toLowerCase();
@@ -927,11 +940,18 @@ export default function PulseDashboard() {
                 actionType={actionModal.actionType}
                 members={members}
                 onSubmit={async payload => {
-                    await apiFetch('/api/ritus/runs', {
+                    const res = await apiFetch('/api/ritus/runs', {
                         method: 'PATCH',
                         body: JSON.stringify(payload)
                     });
-                    await loadAll(true);
+                    if (res?.run) {
+                        setRitusData(prev => ({
+                            ...prev,
+                            runs: (prev.runs || []).map(r =>
+                                String(r._id) === String(res.run._id) ? res.run : r
+                            )
+                        }));
+                    }
                 }}
             />
 
@@ -941,11 +961,17 @@ export default function PulseDashboard() {
                 task={convertModal.task}
                 members={members}
                 onSubmit={async payload => {
-                    await apiFetch('/api/sequa/tasks', {
+                    const res = await apiFetch('/api/sequa/tasks', {
                         method: 'PATCH',
                         body: JSON.stringify(payload)
                     });
-                    await loadAll(true);
+                    if (res?.task) {
+                        setSequaTasks(prev =>
+                            prev.map(t =>
+                                String(t._id) === String(res.task._id) ? res.task : t
+                            )
+                        );
+                    }
                 }}
             />
         </div>
