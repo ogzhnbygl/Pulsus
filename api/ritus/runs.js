@@ -551,7 +551,9 @@ export default async function handler(req, res) {
                         if (session) {
                             try {
                                 await session.endSession();
-                            } catch (_) {}
+                            } catch {
+                                // Ignore session closure error
+                            }
                         }
                     }
 

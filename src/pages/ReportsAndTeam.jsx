@@ -19,7 +19,7 @@ import {
 import { exportAuditReportPdf } from '../utils/pdfExport';
 
 export default function ReportsAndTeam() {
-    const { isVet, user } = useAuth();
+    const { user } = useAuth();
     const [report, setReport] = useState(null);
     const [members, setMembers] = useState(DEFAULT_STAFF_DIRECTORY);
     const [loading, setLoading] = useState(true);
