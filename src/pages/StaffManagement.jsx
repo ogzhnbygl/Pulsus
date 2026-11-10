@@ -8,10 +8,12 @@ import {
     Check,
     Trash2,
     Save,
-    RotateCcw
+    RotateCcw,
+    AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, DEFAULT_STAFF_DIRECTORY } from '../utils/pulsusHelpers';
+import ConfirmModal from '../components/ConfirmModal';
 
 const ROLE_OPTIONS = [
     {
@@ -49,6 +51,17 @@ export default function StaffManagement() {
     const [saving, setSaving] = useState(false);
     const [savingEmail, setSavingEmail] = useState(null);
     const [savedBanner, setSavedBanner] = useState(false);
+    const [errorBanner, setErrorBanner] = useState(null);
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: '',
+        variant: 'danger',
+        hideCancel: false,
+        isLoading: false,
+        onConfirm: null
+    });
 
     const loadMembers = useCallback(async () => {
         setLoading(true);
@@ -141,7 +154,8 @@ export default function StaffManagement() {
             setSavedBanner(true);
             setTimeout(() => setSavedBanner(false), 3000);
         } catch (err) {
-            alert(err.message || 'Değişiklikler kaydedilirken hata oluştu.');
+            setErrorBanner(err.message || 'Değişiklikler kaydedilirken hata oluştu.');
+            setTimeout(() => setErrorBanner(null), 6000);
         } finally {
             setSaving(false);
         }
@@ -150,33 +164,51 @@ export default function StaffManagement() {
     const handleResetChanges = () => {
         setMembers(initialMembers);
         setSavedBanner(false);
+        setErrorBanner(null);
     };
 
     const handleRemoveFromPulsus = async member => {
         if (!isVet) return;
         if (String(member.email).toLowerCase() === String(user?.email || '').toLowerCase()) {
-            alert('Kendi aktif yönetici hesabınızı listeden çıkaramazsınız.');
-            return;
-        }
-        if (
-            !window.confirm(
-                `${member.name || member.email} adlı kişiyi Pulsus personel listesinden çıkarmak istediğinize emin misiniz?`
-            )
-        ) {
+            setConfirmModal({
+                isOpen: true,
+                title: 'İşlem Engellendi',
+                message: 'Kendi aktif yönetici hesabınızı listeden çıkaramazsınız.',
+                confirmText: 'Anladım',
+                variant: 'warning',
+                hideCancel: true,
+                isLoading: false,
+                onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+            });
             return;
         }
 
-        setSavingEmail(member.email);
-        try {
-            await apiFetch(`/api/members?email=${encodeURIComponent(member.email)}`, {
-                method: 'DELETE'
-            });
-            setMembers(prev => prev.filter(m => m.email !== member.email));
-        } catch (err) {
-            alert(err.message || 'Personel listeden çıkarılamadı.');
-        } finally {
-            setSavingEmail(null);
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: 'Personeli Listeden Çıkar',
+            message: `${member.name || member.email} adlı kişiyi Pulsus personel listesinden çıkarmak istediğinize emin misiniz?`,
+            confirmText: 'Evet, Listeden Çıkar',
+            variant: 'danger',
+            hideCancel: false,
+            isLoading: false,
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isLoading: true }));
+                setSavingEmail(member.email);
+                try {
+                    await apiFetch(`/api/members?email=${encodeURIComponent(member.email)}`, {
+                        method: 'DELETE'
+                    });
+                    setMembers(prev => prev.filter(m => m.email !== member.email));
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                } catch (err) {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                    setErrorBanner(err.message || 'Personel listeden çıkarılamadı.');
+                    setTimeout(() => setErrorBanner(null), 6000);
+                } finally {
+                    setSavingEmail(null);
+                }
+            }
+        });
     };
 
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -202,6 +234,12 @@ export default function StaffManagement() {
 
                 {isVet && (
                     <div className="flex items-center gap-2">
+                        {errorBanner && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                <AlertCircle size={14} />
+                                {errorBanner}
+                            </span>
+                        )}
                         {savedBanner && !hasUnsavedChanges && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <Check size={14} />
@@ -420,6 +458,18 @@ export default function StaffManagement() {
                     </table>
                 </div>
             </div>
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                confirmText={confirmModal.confirmText}
+                variant={confirmModal.variant}
+                hideCancel={confirmModal.hideCancel}
+                isLoading={confirmModal.isLoading}
+                onConfirm={confirmModal.onConfirm}
+                onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+            />
         </div>
     );
 }

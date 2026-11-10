@@ -17,7 +17,10 @@ import {
     RefreshCw,
     Link2,
     CheckSquare,
-    Square
+    Square,
+    AlertCircle,
+    FileText,
+    X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -35,6 +38,7 @@ import {
     RitusActionModal,
     ConvertIssueModal
 } from '../components/TaskModals';
+import { downloadAuditReportPdf } from '../utils/pdfExport';
 
 export default function PulseDashboard() {
     const { user, isVet, isTechnician, isCaretaker } = useAuth();
@@ -50,6 +54,24 @@ export default function PulseDashboard() {
     const [sourceRitusForSequa, setSourceRitusForSequa] = useState(null);
     const [actionModal, setActionModal] = useState({ open: false, run: null, actionType: null });
     const [convertModal, setConvertModal] = useState({ open: false, task: null });
+    const [notification, setNotification] = useState(null);
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    const handleDownloadPdf = async () => {
+        try {
+            setExportingPdf(true);
+            await downloadAuditReportPdf(user);
+        } catch (err) {
+            console.error('PDF indirme hatası:', err);
+            setNotification({
+                type: 'error',
+                message: 'PDF raporu indirilemedi: ' + (err.message || 'Yetki veya bağlantı hatası')
+            });
+            setTimeout(() => setNotification(null), 5000);
+        } finally {
+            setExportingPdf(false);
+        }
+    };
 
     const loadAll = useCallback(async (isSilent = false) => {
         if (!isSilent) setLoading(true);
@@ -92,7 +114,8 @@ export default function PulseDashboard() {
                 }));
             }
         } catch (err) {
-            alert(err.message || 'Ritus işlemi başarısız oldu.');
+            setNotification({ type: 'error', message: err.message || 'Ritus işlemi başarısız oldu.' });
+            setTimeout(() => setNotification(null), 5000);
         }
     };
 
@@ -108,7 +131,8 @@ export default function PulseDashboard() {
                 );
             }
         } catch (err) {
-            alert(err.message || 'Sequa işlemi başarısız oldu.');
+            setNotification({ type: 'error', message: err.message || 'Sequa işlemi başarısız oldu.' });
+            setTimeout(() => setNotification(null), 5000);
         }
     };
 
@@ -166,8 +190,42 @@ export default function PulseDashboard() {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-5">
+            {notification && (
+                <div
+                    className={`p-4 rounded-2xl border flex items-center justify-between gap-3 animate-in fade-in ${
+                        notification.type === 'error'
+                            ? 'bg-rose-50 border-rose-200 text-rose-800'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    }`}
+                    role="alert"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <AlertCircle size={18} className="shrink-0 text-rose-600" />
+                        <span className="text-sm font-semibold">{notification.message}</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setNotification(null)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-black/5"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            )}
+
             {/* Compact Quick Action Bar */}
             <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    disabled={exportingPdf}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition-all disabled:opacity-50"
+                    title="HADMEK / HADYEK Resmi Vivarium Denetim ve Performans Raporunu PDF Olarak İndir"
+                >
+                    <FileText size={15} />
+                    {exportingPdf ? 'PDF Hazırlanıyor...' : 'Resmi Denetim PDF İndir'}
+                </button>
+
                 <button
                     type="button"
                     onClick={() => loadAll(true)}
@@ -656,17 +714,17 @@ export default function PulseDashboard() {
                                                                 { checklistItemId: item.id ?? idx }
                                                             )
                                                         }
-                                                        className="w-full flex items-start gap-2 text-left text-xs text-slate-700 hover:text-indigo-700 py-0.5"
+                                                        className="w-full flex items-center gap-2.5 text-left text-xs text-slate-700 hover:text-indigo-700 hover:bg-slate-100/80 rounded-lg min-h-[44px] py-2.5 px-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                                     >
                                                         {item.done ? (
                                                             <CheckSquare
-                                                                size={14}
-                                                                className="text-emerald-600 shrink-0 mt-0.5"
+                                                                size={16}
+                                                                className="text-emerald-600 shrink-0"
                                                             />
                                                         ) : (
                                                             <Square
-                                                                size={14}
-                                                                className="text-slate-400 shrink-0 mt-0.5"
+                                                                size={16}
+                                                                className="text-slate-400 shrink-0"
                                                             />
                                                         )}
                                                         <span

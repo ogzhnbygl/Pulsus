@@ -28,8 +28,7 @@ function extractUpcomingLeaveDates(leaveDocs, todayStr) {
                     unit: 'daily',
                     dates: matchedDates,
                     startTime: null,
-                    endTime: null,
-                    description: doc.description || ''
+                    endTime: null
                 });
             }
         } else if (doc.unit === 'hourly' && doc.singleDate) {
@@ -41,8 +40,7 @@ function extractUpcomingLeaveDates(leaveDocs, todayStr) {
                     dates: [dKey],
                     singleDate: dKey,
                     startTime: doc.startTime || null,
-                    endTime: doc.endTime || null,
-                    description: doc.description || ''
+                    endTime: doc.endTime || null
                 });
             }
         }
@@ -97,8 +95,7 @@ export default async function handler(req, res) {
                             ? {
                                   unit: todayLeaveDoc.unit,
                                   startTime: todayLeaveDoc.startTime || null,
-                                  endTime: todayLeaveDoc.endTime || null,
-                                  description: todayLeaveDoc.description || ''
+                                  endTime: todayLeaveDoc.endTime || null
                               }
                             : null,
                         upcomingLeaves

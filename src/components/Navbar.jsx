@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
     Activity,
@@ -7,12 +7,27 @@ import {
     BarChart3,
     Users,
     LayoutGrid,
-    LogOut
+    LogOut,
+    FileText
 } from 'lucide-react';
 import { useAuth, getApexUrl, isPreviewHost } from '../context/AuthContext';
+import { downloadAuditReportPdf } from '../utils/pdfExport';
 
 export default function Navbar() {
     const { user, logout, isVet, isCaretaker, switchDevProfile, devProfiles } = useAuth();
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    const handleDownloadPdf = async () => {
+        try {
+            setExportingPdf(true);
+            await downloadAuditReportPdf(user);
+        } catch (err) {
+            console.error('Navbar PDF indirme hatası:', err);
+            alert('PDF raporu indirilemedi: ' + (err.message || 'Yetki veya bağlantı hatası'));
+        } finally {
+            setExportingPdf(false);
+        }
+    };
 
     const navItems = [
         {
@@ -104,6 +119,18 @@ export default function Navbar() {
                         )}
 
                         <div className="flex items-center gap-2 pl-3 sm:pl-4 border-l border-slate-200">
+                            {isVet && (
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadPdf}
+                                    disabled={exportingPdf}
+                                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-2xs transition-all disabled:opacity-50 mr-1"
+                                    title="Resmi HADMEK/HADYEK Vivarium Denetim PDF Raporu İndir"
+                                >
+                                    <FileText size={14} />
+                                    {exportingPdf ? 'PDF Hazırlanıyor...' : 'Denetim PDF'}
+                                </button>
+                            )}
                             {user && (
                                 <span className="text-xs sm:text-sm font-medium text-slate-700 mr-1">
                                     {user.name || user.email}

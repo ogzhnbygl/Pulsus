@@ -469,6 +469,20 @@ export default async function handler(req, res) {
                     });
                 }
 
+                if (existing.taskType === 'vet_request' && userRole !== 'vet' && user.role !== 'admin') {
+                    return res.status(403).json({
+                        error: 'Veteriner hekim muayene ve klinik karar talepleri yalnızca Sorumlu Veteriner Hekim tarafından onaylanıp kapatılabilir.'
+                    });
+                }
+
+                const isVetRequestByVet =
+                    existing.taskType === 'vet_request' && (userRole === 'vet' || user.role === 'admin');
+                if (existing.status !== 'review' && !isVetRequestByVet) {
+                    return res.status(400).json({
+                        error: 'Görev tamamlanmadan veya denetime sunulmadan doğrudan onaylanamaz.'
+                    });
+                }
+
                 const logEntry = {
                     action: 'approve',
                     by: userEmail,
@@ -541,6 +555,24 @@ export default async function handler(req, res) {
                     });
                 }
 
+                if (userRole === 'caretaker') {
+                    if (data.priority === 'critical') {
+                        return res.status(403).json({
+                            error: 'Bu görevin durumunu veya detaylarını güncelleme yetkiniz bulunmamaktadır.'
+                        });
+                    }
+                    if (data.assignedTo) {
+                        const cleanTarget = data.assignedTo.trim().toLowerCase();
+                        const targetMember = await membersCol.findOne({ email: cleanTarget });
+                        const targetRole = targetMember?.pulsusRole || (cleanTarget === VET_EMAIL ? 'vet' : 'caretaker');
+                        if (targetRole === 'caretaker') {
+                            return res.status(403).json({
+                                error: 'Bakıcı/Temizlik personeli diğer bir bakıcıya iş veya bildirim atayamaz; yalnızca Teknikere veya Veteriner Hekime bildirim açabilir.'
+                            });
+                        }
+                    }
+                }
+
                 const editFields = { updatedAt: now };
                 if (data.title !== undefined) editFields.title = data.title.trim();
                 if (data.description !== undefined) editFields.description = data.description.trim();
@@ -583,6 +615,37 @@ export default async function handler(req, res) {
             }
 
             // 6. move_status or add_note
+            const isVet = userRole === 'vet';
+            const isTech = userRole === 'technician';
+            const isAssigned = existing.assignedTo?.toLowerCase() === userEmail;
+            const isReviewer = existing.reviewerEmail?.toLowerCase() === userEmail;
+            const isCreator = existing.createdBy?.toLowerCase() === userEmail;
+
+            const isAuthorized = isVet || isTech || isAssigned || isReviewer || isCreator;
+            if (!isAuthorized) {
+                return res.status(403).json({
+                    error: 'Bu görevin durumunu veya detaylarını güncelleme yetkiniz bulunmamaktadır.'
+                });
+            }
+
+            if (userRole === 'caretaker') {
+                if (!isAssigned && !isCreator) {
+                    return res.status(403).json({
+                        error: 'Bu görevin durumunu veya detaylarını güncelleme yetkiniz bulunmamaktadır.'
+                    });
+                }
+                if (data.priority === 'critical') {
+                    return res.status(403).json({
+                        error: 'Bu görevin durumunu veya detaylarını güncelleme yetkiniz bulunmamaktadır.'
+                    });
+                }
+                if (data.externalTicketNo !== undefined && !isAssigned && !isCreator) {
+                    return res.status(403).json({
+                        error: 'Bu görevin durumunu veya detaylarını güncelleme yetkiniz bulunmamaktadır.'
+                    });
+                }
+            }
+
             const setFields = { updatedAt: now };
             if (data.status) {
                 setFields.status = data.status;
@@ -636,13 +699,12 @@ export default async function handler(req, res) {
                 return res.status(404).json({ error: 'Sequa görevi bulunamadı.' });
             }
 
-            const isVet = user.pulsusRole === 'vet';
-            const isTech = user.pulsusRole === 'technician';
+            const isVet = user.pulsusRole === 'vet' || user.role === 'admin';
             const isCreator = existing.createdBy?.toLowerCase() === user.email.toLowerCase();
 
-            if (!isVet && !isTech && !isCreator) {
+            if (!isVet && !isCreator) {
                 return res.status(403).json({
-                    error: 'Bu görevi silme yetkiniz bulunmuyor.'
+                    error: 'Bu görevi yalnızca oluşturan personel veya Sorumlu Veteriner Hekim silebilir.'
                 });
             }
 

@@ -10,7 +10,9 @@ import {
     SlidersHorizontal,
     Link2,
     Trash2,
-    Edit3
+    Edit3,
+    AlertCircle,
+    X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -21,6 +23,7 @@ import {
     getMemberName
 } from '../utils/pulsusHelpers';
 import { CreateSequaModal, ConvertIssueModal } from '../components/TaskModals';
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function SequaBoard() {
     const { user, isVet, isTechnician, isCaretaker } = useAuth();
@@ -37,6 +40,17 @@ export default function SequaBoard() {
     const [editingTask, setEditingTask] = useState(null);
     const [initialModalType, setInitialModalType] = useState(null);
     const [convertModal, setConvertModal] = useState({ open: false, task: null });
+    const [notification, setNotification] = useState(null);
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: '',
+        variant: 'danger',
+        hideCancel: false,
+        isLoading: false,
+        onConfirm: null
+    });
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -72,18 +86,33 @@ export default function SequaBoard() {
                 );
             }
         } catch (err) {
-            alert(err.message || 'İşlem başarısız oldu.');
+            setNotification({ type: 'error', message: err.message || 'İşlem başarısız oldu.' });
+            setTimeout(() => setNotification(null), 5000);
         }
     };
 
-    const handleDeleteTask = async taskId => {
-        if (!window.confirm('Bu Sequa görev kaydını silmek istediğinize emin misiniz?')) return;
-        try {
-            await apiFetch(`/api/sequa/tasks?id=${taskId}`, { method: 'DELETE' });
-            setTasks(prev => prev.filter(t => String(t._id) !== String(taskId)));
-        } catch (err) {
-            alert(err.message || 'Görev silinemedi.');
-        }
+    const handleDeleteTask = taskId => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Sequa Görev Kaydını Sil',
+            message: 'Bu Sequa görev kaydını silmek istediğinize emin misiniz?',
+            confirmText: 'Evet, Görevi Sil',
+            variant: 'danger',
+            hideCancel: false,
+            isLoading: false,
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await apiFetch(`/api/sequa/tasks?id=${taskId}`, { method: 'DELETE' });
+                    setTasks(prev => prev.filter(t => String(t._id) !== String(taskId)));
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                } catch (err) {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                    setNotification({ type: 'error', message: err.message || 'Görev silinemedi.' });
+                    setTimeout(() => setNotification(null), 5000);
+                }
+            }
+        });
     };
 
     const filteredTasks = tasks.filter(t => {
@@ -132,6 +161,29 @@ export default function SequaBoard() {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+            {notification && (
+                <div
+                    className={`p-4 rounded-2xl border flex items-center justify-between gap-3 animate-in fade-in ${
+                        notification.type === 'error'
+                            ? 'bg-rose-50 border-rose-200 text-rose-800'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    }`}
+                    role="alert"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <AlertCircle size={18} className="shrink-0 text-rose-600" />
+                        <span className="text-sm font-semibold">{notification.message}</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setNotification(null)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-black/5"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            )}
+
             {/* Header */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
@@ -495,6 +547,18 @@ export default function SequaBoard() {
                         );
                     }
                 }}
+            />
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                confirmText={confirmModal.confirmText}
+                variant={confirmModal.variant}
+                hideCancel={confirmModal.hideCancel}
+                isLoading={confirmModal.isLoading}
+                onConfirm={confirmModal.onConfirm}
+                onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
             />
         </div>
     );

@@ -15,6 +15,10 @@ export default async function handler(req, res) {
         return res.status(error.status || 401).json({ error: error.message });
     }
 
+    if (user.pulsusRole !== 'vet' && user.role !== 'admin') {
+        return res.status(403).json({ error: 'Raporları ve performans verilerini yalnızca Sorumlu Veteriner Hekim görüntüleyebilir.' });
+    }
+
     try {
         const client = await clientPromise;
         const db = client.db(getDbName('Pulsus_db'));

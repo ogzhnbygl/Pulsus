@@ -75,6 +75,9 @@ export function resolveDefaultMemberProfile(email, name = null, isAdmin = false)
     };
 }
 
+let lastDefaultMembersSync = 0;
+const DEFAULT_MEMBERS_SYNC_TTL_MS = 5 * 60 * 1000;
+
 export async function ensureDefaultMembers(db, client = null) {
     const membersCol = db.collection('members');
     const count = await membersCol.countDocuments();
@@ -90,6 +93,11 @@ export async function ensureDefaultMembers(db, client = null) {
         );
     }
 
+    // Skip recurring sync if within TTL
+    if (Date.now() - lastDefaultMembersSync < DEFAULT_MEMBERS_SYNC_TTL_MS && count > 0) {
+        return;
+    }
+
     // Sync with Apex_db.users: only users with 'pulsus' access or 'admin' role belong in Pulsus
     if (client) {
         try {
@@ -97,6 +105,7 @@ export async function ensureDefaultMembers(db, client = null) {
             const allApexUsers = await apexDb.collection('users').find({}).toArray();
 
             if (allApexUsers.length > 0) {
+                const existingEmails = new Set(await membersCol.distinct('email'));
                 const revokedEmails = [];
                 for (const u of allApexUsers) {
                     const emailLower = String(u.email || '').trim().toLowerCase();
@@ -107,8 +116,7 @@ export async function ensureDefaultMembers(db, client = null) {
                             u.apps.some(a => String(a).toLowerCase() === 'pulsus'));
 
                     if (hasPulsusAccess) {
-                        const exists = await membersCol.findOne({ email: emailLower });
-                        if (!exists) {
+                        if (!existingEmails.has(emailLower)) {
                             const profile = resolveDefaultMemberProfile(
                                 emailLower,
                                 u.name,
@@ -119,6 +127,7 @@ export async function ensureDefaultMembers(db, client = null) {
                                 createdAt: now,
                                 updatedAt: now
                             });
+                            existingEmails.add(emailLower);
                         }
                     } else {
                         revokedEmails.push(emailLower);
@@ -133,6 +142,7 @@ export async function ensureDefaultMembers(db, client = null) {
             // Ignore cross-db sync errors if any
         }
     }
+    lastDefaultMembersSync = Date.now();
 }
 
 export async function verifyUser(req) {
@@ -143,7 +153,9 @@ export async function verifyUser(req) {
 
     const client = await clientPromise;
     const db = client.db(getDbName('Pulsus_db'));
-    await ensureDefaultMembers(db, client);
+    if (Date.now() - lastDefaultMembersSync >= DEFAULT_MEMBERS_SYNC_TTL_MS) {
+        await ensureDefaultMembers(db, client);
+    }
 
     const membersCol = db.collection('members');
     const normalizedEmail = user.email.toLowerCase();

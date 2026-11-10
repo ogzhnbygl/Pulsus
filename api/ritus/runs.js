@@ -38,8 +38,10 @@ const patchRunSchema = z.object({
             z.object({
                 id: z.number().int(),
                 text: z.string(),
-                done: z.boolean()
-            })
+                done: z.boolean(),
+                completedAt: z.union([z.string(), z.date()]).optional().nullable(),
+                completedBy: z.string().optional().nullable()
+            }).passthrough()
         )
         .optional(),
     spawnSequa: z.boolean().optional().default(false),
@@ -236,6 +238,14 @@ export default async function handler(req, res) {
                         error: 'Bu görevi yalnızca atanmış sorumlu personel başlatabilir.'
                     });
                 }
+                if (run.status === 'done') {
+                    return res.status(400).json({ error: 'Tamamlanmış bir görev tekrar başlatılamaz.' });
+                }
+                if (!['todo', 'needs_revision'].includes(run.status)) {
+                    return res.status(400).json({
+                        error: `'${run.status}' durumundaki bir görev başlatılamaz.`
+                    });
+                }
                 const historyItem = {
                     action: 'start',
                     by: userEmail,
@@ -261,20 +271,39 @@ export default async function handler(req, res) {
                         error: 'Kontrol listesini yalnızca görev sorumlusu veya denetçisi güncelleyebilir.'
                     });
                 }
+                if (run.status === 'done') {
+                    return res.status(400).json({
+                        error: 'Tamamlanmış ve onaylanmış görevlerin kontrol listesi değiştirilemez.'
+                    });
+                }
 
-                let updatedChecklist = Array.isArray(run.checklist) ? [...run.checklist] : [];
-                if (Array.isArray(data.checklist)) {
-                    updatedChecklist = data.checklist;
-                } else if (typeof data.checklistItemId === 'number') {
-                    updatedChecklist = updatedChecklist.map(item =>
-                        item.id === data.checklistItemId ? { ...item, done: !item.done } : item
+                if (typeof data.checklistItemId === 'number') {
+                    const currentItem = Array.isArray(run.checklist)
+                        ? run.checklist.find(item => item.id === data.checklistItemId)
+                        : null;
+                    const nextDone = currentItem ? !currentItem.done : true;
+
+                    await runsCol.updateOne(
+                        { _id: runObjectId },
+                        {
+                            $set: {
+                                'checklist.$[elem].done': nextDone,
+                                'checklist.$[elem].completedAt': nextDone ? now : null,
+                                'checklist.$[elem].completedBy': nextDone ? userEmail : null,
+                                updatedAt: now
+                            }
+                        },
+                        {
+                            arrayFilters: [{ 'elem.id': data.checklistItemId }]
+                        }
+                    );
+                } else if (Array.isArray(data.checklist)) {
+                    await runsCol.updateOne(
+                        { _id: runObjectId },
+                        { $set: { checklist: data.checklist, updatedAt: now } }
                     );
                 }
 
-                await runsCol.updateOne(
-                    { _id: runObjectId },
-                    { $set: { checklist: updatedChecklist, updatedAt: now } }
-                );
                 const updated = await runsCol.findOne({ _id: runObjectId });
                 return res.status(200).json({ run: updated });
             }
@@ -284,6 +313,21 @@ export default async function handler(req, res) {
                 if (!isEffectiveAssignee && !isVet) {
                     return res.status(403).json({
                         error: 'Görevi denetime yalnızca atanmış sorumlu personel gönderebilir.'
+                    });
+                }
+                if (run.status === 'todo') {
+                    return res.status(400).json({
+                        error: 'Görev başlatılmadan denetime gönderilemez.'
+                    });
+                }
+                if (!['in_progress', 'needs_revision'].includes(run.status)) {
+                    return res.status(400).json({
+                        error: `'${run.status}' durumundaki bir görev denetime gönderilemez.`
+                    });
+                }
+                if (Array.isArray(run.checklist) && run.checklist.some(item => !item.done)) {
+                    return res.status(400).json({
+                        error: 'Tüm kontrol listesi maddeleri tamamlanmadan denetime sunulamaz.'
                     });
                 }
 
@@ -324,6 +368,11 @@ export default async function handler(req, res) {
                         error: 'Bu görevi yalnızca atanmış Denetçi veya Sorumlu Veteriner Hekim onaylayabilir.'
                     });
                 }
+                if (!['pending_review', 'escalated'].includes(run.status)) {
+                    return res.status(400).json({
+                        error: `'${run.status}' durumundaki görev denetimden geçmeden onaylanamaz.`
+                    });
+                }
 
                 const historyItem = {
                     action: 'approve',
@@ -359,6 +408,11 @@ export default async function handler(req, res) {
                 if (!isEffectiveReviewer && !isVet) {
                     return res.status(403).json({
                         error: 'Bu göreve yalnızca atanmış Denetçi veya Sorumlu Veteriner Hekim tekrar (revizyon) isteyebilir.'
+                    });
+                }
+                if (run.status !== 'pending_review') {
+                    return res.status(400).json({
+                        error: 'Yalnızca denetim bekleyen (pending_review) görevler için revizyon talep edilebilir.'
                     });
                 }
                 if (!data.note || data.note.trim().length < 2) {
@@ -418,7 +472,9 @@ export default async function handler(req, res) {
 
                 if (data.spawnSequa) {
                     const sequaCol = db.collection('sequa_tasks');
+                    const sequaId = new ObjectId();
                     const sequaDoc = {
+                        _id: sequaId,
                         title: data.sequaTitle?.trim() || `[Ritus Eskalasyon] ${run.title}`,
                         description: data.note.trim(),
                         taskType: 'vet_request',
@@ -446,14 +502,9 @@ export default async function handler(req, res) {
                         createdAt: now,
                         updatedAt: now
                     };
-                    const seqRes = await sequaCol.insertOne(sequaDoc);
-                    spawnedSequaTask = { ...sequaDoc, _id: seqRes.insertedId };
-                    spawnedIds.push(seqRes.insertedId.toString());
-                }
+                    const updatedSpawnedIds = [...spawnedIds, sequaId.toString()];
 
-                await runsCol.updateOne(
-                    { _id: runObjectId },
-                    {
+                    const updateRunPayload = {
                         $set: {
                             status: 'escalated',
                             escalatedTo: VET_EMAIL,
@@ -461,12 +512,89 @@ export default async function handler(req, res) {
                             escalatedBy: userEmail,
                             escalatedAt: now,
                             effectiveReviewer: VET_EMAIL,
-                            spawnedSequaIds: spawnedIds,
+                            spawnedSequaIds: updatedSpawnedIds,
                             updatedAt: now
                         },
                         $push: { reviewHistory: historyItem }
+                    };
+
+                    let committed = false;
+                    let session = null;
+                    try {
+                        if (typeof client.startSession === 'function') {
+                            session = client.startSession();
+                            await session.withTransaction(async () => {
+                                await sequaCol.insertOne(sequaDoc, { session });
+                                const updateRes = await runsCol.updateOne(
+                                    { _id: runObjectId },
+                                    updateRunPayload,
+                                    { session }
+                                );
+                                if (updateRes.matchedCount === 0) {
+                                    throw new Error('Rutin görev kaydı bulunamadı.');
+                                }
+                            });
+                            committed = true;
+                            spawnedSequaTask = sequaDoc;
+                        }
+                    } catch (txErr) {
+                        const isUnsupported =
+                            txErr?.code === 20 ||
+                            txErr?.codeName === 'IllegalOperation' ||
+                            /transaction numbers are only allowed on a replica set member/i.test(txErr?.message || '') ||
+                            /transactions are not supported/i.test(txErr?.message || '');
+
+                        if (!isUnsupported) {
+                            throw txErr;
+                        }
+                    } finally {
+                        if (session) {
+                            try {
+                                await session.endSession();
+                            } catch (_) {}
+                        }
                     }
-                );
+
+                    // Fallback with compensating rollback if transactions are not supported on deployment
+                    if (!committed) {
+                        let insertedSequaId = null;
+                        try {
+                            const seqRes = await sequaCol.insertOne(sequaDoc);
+                            insertedSequaId = seqRes.insertedId || sequaId;
+                            const updateRes = await runsCol.updateOne({ _id: runObjectId }, updateRunPayload);
+                            if (updateRes.matchedCount === 0) {
+                                throw new Error('Rutin görev kaydı bulunamadı.');
+                            }
+                            spawnedSequaTask = sequaDoc;
+                        } catch (fallbackErr) {
+                            if (insertedSequaId) {
+                                try {
+                                    await sequaCol.deleteOne({ _id: insertedSequaId });
+                                } catch (cleanupErr) {
+                                    console.error('Failed to compensate/cleanup Sequa ticket:', cleanupErr);
+                                }
+                            }
+                            throw fallbackErr;
+                        }
+                    }
+                } else {
+                    await runsCol.updateOne(
+                        { _id: runObjectId },
+                        {
+                            $set: {
+                                status: 'escalated',
+                                escalatedTo: VET_EMAIL,
+                                escalationNote: data.note.trim(),
+                                escalatedBy: userEmail,
+                                escalatedAt: now,
+                                effectiveReviewer: VET_EMAIL,
+                                spawnedSequaIds: spawnedIds,
+                                updatedAt: now
+                            },
+                            $push: { reviewHistory: historyItem }
+                        }
+                    );
+                }
 
                 const updated = await runsCol.findOne({ _id: runObjectId });
                 return res.status(200).json({ run: updated, spawnedSequaTask });

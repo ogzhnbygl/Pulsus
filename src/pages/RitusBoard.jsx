@@ -17,9 +17,12 @@ import {
     RefreshCw,
     X,
     UserCheck,
-    SlidersHorizontal
+    SlidersHorizontal,
+    AlertCircle,
+    FileText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { downloadAuditReportPdf } from '../utils/pdfExport';
 import {
     apiFetch,
     VET_EMAIL,
@@ -33,6 +36,7 @@ import {
     getMemberName
 } from '../utils/pulsusHelpers';
 import { CreateSequaModal, RitusActionModal } from '../components/TaskModals';
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function RitusBoard() {
     const { user, isVet, isCaretaker } = useAuth();
@@ -48,7 +52,35 @@ export default function RitusBoard() {
     const [templates, setTemplates] = useState([]);
     const [members, setMembers] = useState(DEFAULT_STAFF_DIRECTORY);
     const [loading, setLoading] = useState(true);
+    const [notification, setNotification] = useState(null);
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: '',
+        variant: 'danger',
+        hideCancel: false,
+        isLoading: false,
+        onConfirm: null
+    });
     const [distributing, setDistributing] = useState(false);
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    const handleDownloadPdf = async () => {
+        try {
+            setExportingPdf(true);
+            await downloadAuditReportPdf(user);
+        } catch (err) {
+            console.error('PDF indirme hatası:', err);
+            setNotification({
+                type: 'error',
+                message: 'PDF raporu indirilemedi: ' + (err.message || 'Yetki veya bağlantı hatası')
+            });
+            setTimeout(() => setNotification(null), 5000);
+        } finally {
+            setExportingPdf(false);
+        }
+    };
 
     // Filters
     const [filterAssignee, setFilterAssignee] = useState('ALL');
@@ -112,7 +144,8 @@ export default function RitusBoard() {
             }
             await refreshRunsOnly(nextMode);
         } catch (err) {
-            alert(err.message || 'Dağıtım sırasında hata oluştu.');
+            setNotification({ type: 'error', message: err.message || 'Dağıtım sırasında hata oluştu.' });
+            setTimeout(() => setNotification(null), 5000);
         } finally {
             setDistributing(false);
         }
@@ -130,7 +163,8 @@ export default function RitusBoard() {
             });
             await refreshRunsOnly();
         } catch (err) {
-            alert(err.message || 'Circa izin senkronizasyonu başarısız oldu.');
+            setNotification({ type: 'error', message: err.message || 'Circa izin senkronizasyonu başarısız oldu.' });
+            setTimeout(() => setNotification(null), 5000);
         } finally {
             setDistributing(false);
         }
@@ -149,37 +183,66 @@ export default function RitusBoard() {
                 }));
             }
         } catch (err) {
-            alert(err.message || 'İşlem başarısız oldu.');
+            setNotification({ type: 'error', message: err.message || 'İşlem başarısız oldu.' });
+            setTimeout(() => setNotification(null), 5000);
         }
     };
 
-    const handleDeleteTemplate = async templateId => {
-        if (!window.confirm('Bu rutin şablonunu ve aktif haftalık kartlarını silmek istediğinize emin misiniz?')) return;
-        try {
-            await apiFetch(`/api/ritus/templates?id=${templateId}&updateScope=current_week`, { method: 'DELETE' });
-            setTemplates(prev => prev.filter(t => String(t._id) !== String(templateId)));
-            setRitusState(prev => ({
-                ...prev,
-                runs: (prev.runs || []).filter(
-                    r => !(String(r.templateId) === String(templateId) && r.status !== 'done')
-                )
-            }));
-        } catch (err) {
-            alert(err.message || 'Şablon silinemedi.');
-        }
+    const handleDeleteTemplate = templateId => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Rutin Şablonunu Sil',
+            message: 'Bu rutin şablonunu ve aktif haftalık kartlarını silmek istediğinize emin misiniz?',
+            confirmText: 'Evet, Şablonu Sil',
+            variant: 'danger',
+            hideCancel: false,
+            isLoading: false,
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await apiFetch(`/api/ritus/templates?id=${templateId}&updateScope=current_week`, { method: 'DELETE' });
+                    setTemplates(prev => prev.filter(t => String(t._id) !== String(templateId)));
+                    setRitusState(prev => ({
+                        ...prev,
+                        runs: (prev.runs || []).filter(
+                            r => !(String(r.templateId) === String(templateId) && r.status !== 'done')
+                        )
+                    }));
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                } catch (err) {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                    setNotification({ type: 'error', message: err.message || 'Şablon silinemedi.' });
+                    setTimeout(() => setNotification(null), 5000);
+                }
+            }
+        });
     };
 
-    const handleDeleteRun = async runId => {
-        if (!window.confirm('Bu görev kartını panodan silmek istediğinize emin misiniz?')) return;
-        try {
-            await apiFetch(`/api/ritus/runs?id=${runId}`, { method: 'DELETE' });
-            setRitusState(prev => ({
-                ...prev,
-                runs: (prev.runs || []).filter(r => String(r._id) !== String(runId))
-            }));
-        } catch (err) {
-            alert(err.message || 'Görev kartı silinemedi.');
-        }
+    const handleDeleteRun = runId => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Görev Kartını Sil',
+            message: 'Bu görev kartını panodan silmek istediğinize emin misiniz?',
+            confirmText: 'Evet, Kartı Sil',
+            variant: 'danger',
+            hideCancel: false,
+            isLoading: false,
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await apiFetch(`/api/ritus/runs?id=${runId}`, { method: 'DELETE' });
+                    setRitusState(prev => ({
+                        ...prev,
+                        runs: (prev.runs || []).filter(r => String(r._id) !== String(runId))
+                    }));
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                } catch (err) {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                    setNotification({ type: 'error', message: err.message || 'Görev kartı silinemedi.' });
+                    setTimeout(() => setNotification(null), 5000);
+                }
+            }
+        });
     };
 
     const myEmail = String(user?.email || '').toLowerCase();
@@ -236,6 +299,29 @@ export default function RitusBoard() {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+            {notification && (
+                <div
+                    className={`p-4 rounded-2xl border flex items-center justify-between gap-3 animate-in fade-in ${
+                        notification.type === 'error'
+                            ? 'bg-rose-50 border-rose-200 text-rose-800'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    }`}
+                    role="alert"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <AlertCircle size={18} className="shrink-0 text-rose-600" />
+                        <span className="text-sm font-semibold">{notification.message}</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setNotification(null)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-black/5"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            )}
+
             {/* Header & Mode Switcher */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
@@ -276,6 +362,17 @@ export default function RitusBoard() {
                                 ⚙️ Rutin Şablon Planlayıcı ({templates.length})
                             </button>
                         </div>
+
+                        <button
+                            type="button"
+                            onClick={handleDownloadPdf}
+                            disabled={exportingPdf}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition-all disabled:opacity-50"
+                            title="HADMEK / HADYEK Resmi Vivarium Denetim ve Performans Raporunu PDF Olarak İndir"
+                        >
+                            <FileText size={15} />
+                            {exportingPdf ? 'PDF Hazırlanıyor...' : 'Resmi Denetim PDF'}
+                        </button>
 
                         <button
                             type="button"
@@ -531,7 +628,7 @@ export default function RitusBoard() {
 
                                                         {/* Interactive Checklist */}
                                                         {run.checklist?.length > 0 && (
-                                                            <div className="space-y-1 pt-1 border-t border-slate-100">
+                                                            <div className="space-y-1.5 pt-1 border-t border-slate-100">
                                                                 {run.checklist.map((item, idx) => (
                                                                     <button
                                                                         key={item.id ?? idx}
@@ -549,24 +646,24 @@ export default function RitusBoard() {
                                                                                 }
                                                                             )
                                                                         }
-                                                                        className="w-full flex items-start gap-1.5 text-left text-[11px] text-slate-700 hover:text-indigo-700 disabled:opacity-75"
+                                                                        className="w-full flex items-center gap-2.5 text-left text-xs text-slate-700 hover:text-indigo-700 hover:bg-slate-100/80 rounded-lg min-h-[44px] py-2.5 px-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-75 disabled:cursor-not-allowed"
                                                                     >
                                                                         {item.done ? (
                                                                             <CheckSquare
-                                                                                size={13}
-                                                                                className="text-emerald-600 shrink-0 mt-0.5"
+                                                                                size={16}
+                                                                                className="text-emerald-600 shrink-0"
                                                                             />
                                                                         ) : (
                                                                             <Square
-                                                                                size={13}
-                                                                                className="text-slate-400 shrink-0 mt-0.5"
+                                                                                size={16}
+                                                                                className="text-slate-400 shrink-0"
                                                                             />
                                                                         )}
                                                                         <span
                                                                             className={
                                                                                 item.done
                                                                                     ? 'line-through text-slate-400'
-                                                                                    : ''
+                                                                                    : 'font-medium'
                                                                             }
                                                                         >
                                                                             {item.text}
@@ -932,6 +1029,18 @@ export default function RitusBoard() {
                         }));
                     }
                 }}
+            />
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                confirmText={confirmModal.confirmText}
+                variant={confirmModal.variant}
+                hideCancel={confirmModal.hideCancel}
+                isLoading={confirmModal.isLoading}
+                onConfirm={confirmModal.onConfirm}
+                onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
             />
         </div>
     );

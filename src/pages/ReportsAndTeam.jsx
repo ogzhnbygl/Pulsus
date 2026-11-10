@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Download,
+    FileText,
     Palmtree,
     RotateCcw,
     ShieldAlert,
     Building2,
     Users,
-    Settings
+    Settings,
+    AlertCircle,
+    X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -16,12 +19,15 @@ import {
     getRoleBadgeInfo,
     getMemberName
 } from '../utils/pulsusHelpers';
+import { exportAuditReportPdf } from '../utils/pdfExport';
 
 export default function ReportsAndTeam() {
-    const { isVet } = useAuth();
+    const { isVet, user } = useAuth();
     const [report, setReport] = useState(null);
     const [members, setMembers] = useState(DEFAULT_STAFF_DIRECTORY);
     const [loading, setLoading] = useState(true);
+    const [exportingPdf, setExportingPdf] = useState(false);
+    const [notification, setNotification] = useState(null);
 
     const loadReport = useCallback(async () => {
         setLoading(true);
@@ -44,6 +50,48 @@ export default function ReportsAndTeam() {
     useEffect(() => {
         loadReport();
     }, [loadReport]);
+
+    const summary = report?.summary || {};
+    const totalRuns = summary?.totalRuns ?? summary?.totalRitusRuns ?? 0;
+    const completionRate = summary?.completionRate ?? summary?.ritusCompletionRate ?? 0;
+    const revisionRate = summary?.revisionRate ?? summary?.needsRevisionRate ?? 0;
+    const staffMetrics = report?.staffMetrics || [];
+    const revisions = report?.recentRevisionsAndEscalations || [];
+    const externalTasks = report?.externalTasks || [];
+
+    const combinedStaffRows = members.map(m => {
+        const metric =
+            staffMetrics.find(
+                s => String(s.email).toLowerCase() === String(m.email).toLowerCase()
+            ) || {};
+        return {
+            ...metric,
+            ...m
+        };
+    });
+
+    const exportPdf = async () => {
+        if (!report) return;
+        try {
+            setExportingPdf(true);
+            await exportAuditReportPdf({
+                report,
+                members,
+                user,
+                combinedStaffRows,
+                dateRangeText: 'Cari Dönem / Tüm Denetim Kayıtları'
+            });
+        } catch (err) {
+            console.error('PDF raporu oluşturulamadı:', err);
+            setNotification({
+                type: 'error',
+                message: 'PDF raporu oluşturulurken bir hata oluştu: ' + (err.message || 'Bilinmeyen hata')
+            });
+            setTimeout(() => setNotification(null), 6000);
+        } finally {
+            setExportingPdf(false);
+        }
+    };
 
     const exportJson = () => {
         if (!report) return;
@@ -103,24 +151,31 @@ export default function ReportsAndTeam() {
         );
     }
 
-    const summary = report?.summary || {};
-    const staffMetrics = report?.staffMetrics || [];
-    const revisions = report?.recentRevisionsAndEscalations || [];
-    const externalTasks = report?.externalTasks || [];
-
-    const combinedStaffRows = members.map(m => {
-        const metric =
-            staffMetrics.find(
-                s => String(s.email).toLowerCase() === String(m.email).toLowerCase()
-            ) || {};
-        return {
-            ...metric,
-            ...m
-        };
-    });
-
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+            {notification && (
+                <div
+                    className={`p-4 rounded-2xl border flex items-center justify-between gap-3 animate-in fade-in ${
+                        notification.type === 'error'
+                            ? 'bg-rose-50 border-rose-200 text-rose-800'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    }`}
+                    role="alert"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <AlertCircle size={18} className="shrink-0 text-rose-600" />
+                        <span className="text-sm font-semibold">{notification.message}</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setNotification(null)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-black/5"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            )}
+
             {/* Header & Export */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -149,6 +204,16 @@ export default function ReportsAndTeam() {
                     )}
                     <button
                         type="button"
+                        onClick={exportPdf}
+                        disabled={exportingPdf}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-xs font-bold text-white shadow-xs transition-colors"
+                        title="HADMEK / HADYEK Resmi Vivarium Denetim Raporu PDF İndir"
+                    >
+                        <FileText size={14} />
+                        {exportingPdf ? 'PDF Hazırlanıyor...' : 'Denetim PDF İndir'}
+                    </button>
+                    <button
+                        type="button"
                         onClick={exportCsv}
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700"
                     >
@@ -173,10 +238,10 @@ export default function ReportsAndTeam() {
                         Toplam Ritus
                     </div>
                     <div className="text-2xl font-extrabold text-slate-900 mt-1">
-                        {summary.totalRitusRuns ?? 0}
+                        {totalRuns}
                     </div>
                     <div className="text-[11px] text-emerald-600 font-semibold mt-0.5">
-                        %{summary.ritusCompletionRate ?? 0} Tamamlanma
+                        %{completionRate} Tamamlanma
                     </div>
                 </div>
 
@@ -187,8 +252,8 @@ export default function ReportsAndTeam() {
                     <div className="text-2xl font-extrabold text-amber-800 mt-1">
                         {summary.totalRevisions ?? 0}
                     </div>
-                    <div className="text-[11px] text-amber-700 mt-0.5">
-                        Denetçiden dönen işler
+                    <div className="text-[11px] text-amber-700 font-semibold mt-0.5">
+                        %{revisionRate} Revizyon Oranı
                     </div>
                 </div>
 
@@ -233,7 +298,7 @@ export default function ReportsAndTeam() {
                         <Building2 size={12} /> Dış Birim (Sequa)
                     </div>
                     <div className="text-2xl font-extrabold text-purple-900 mt-1">
-                        {summary.totalExternalTasks ?? externalTasks.length}
+                        {summary.totalExternalTasks ?? summary.externalTasksTotal ?? externalTasks.length}
                     </div>
                     <div className="text-[11px] text-purple-700 mt-0.5">
                         Üniversite birimleri
