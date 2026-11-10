@@ -19,7 +19,6 @@ import {
     CheckSquare,
     Square,
     AlertCircle,
-    FileText,
     X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -38,7 +37,6 @@ import {
     RitusActionModal,
     ConvertIssueModal
 } from '../components/TaskModals';
-import { downloadAuditReportPdf } from '../utils/pdfExport';
 
 export default function PulseDashboard() {
     const { user, isVet, isTechnician, isCaretaker } = useAuth();
@@ -55,23 +53,6 @@ export default function PulseDashboard() {
     const [actionModal, setActionModal] = useState({ open: false, run: null, actionType: null });
     const [convertModal, setConvertModal] = useState({ open: false, task: null });
     const [notification, setNotification] = useState(null);
-    const [exportingPdf, setExportingPdf] = useState(false);
-
-    const handleDownloadPdf = async () => {
-        try {
-            setExportingPdf(true);
-            await downloadAuditReportPdf(user);
-        } catch (err) {
-            console.error('PDF indirme hatası:', err);
-            setNotification({
-                type: 'error',
-                message: 'PDF raporu indirilemedi: ' + (err.message || 'Yetki veya bağlantı hatası')
-            });
-            setTimeout(() => setNotification(null), 5000);
-        } finally {
-            setExportingPdf(false);
-        }
-    };
 
     const loadAll = useCallback(async (isSilent = false) => {
         if (!isSilent) setLoading(true);
@@ -215,17 +196,6 @@ export default function PulseDashboard() {
 
             {/* Compact Quick Action Bar */}
             <div className="flex flex-wrap items-center justify-end gap-2">
-                <button
-                    type="button"
-                    onClick={handleDownloadPdf}
-                    disabled={exportingPdf}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition-all disabled:opacity-50"
-                    title="HADMEK / HADYEK Resmi Vivarium Denetim ve Performans Raporunu PDF Olarak İndir"
-                >
-                    <FileText size={15} />
-                    {exportingPdf ? 'PDF Hazırlanıyor...' : 'Resmi Denetim PDF İndir'}
-                </button>
-
                 <button
                     type="button"
                     onClick={() => loadAll(true)}

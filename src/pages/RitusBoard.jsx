@@ -18,11 +18,9 @@ import {
     X,
     UserCheck,
     SlidersHorizontal,
-    AlertCircle,
-    FileText
+    AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { downloadAuditReportPdf } from '../utils/pdfExport';
 import {
     apiFetch,
     VET_EMAIL,
@@ -64,23 +62,6 @@ export default function RitusBoard() {
         onConfirm: null
     });
     const [distributing, setDistributing] = useState(false);
-    const [exportingPdf, setExportingPdf] = useState(false);
-
-    const handleDownloadPdf = async () => {
-        try {
-            setExportingPdf(true);
-            await downloadAuditReportPdf(user);
-        } catch (err) {
-            console.error('PDF indirme hatası:', err);
-            setNotification({
-                type: 'error',
-                message: 'PDF raporu indirilemedi: ' + (err.message || 'Yetki veya bağlantı hatası')
-            });
-            setTimeout(() => setNotification(null), 5000);
-        } finally {
-            setExportingPdf(false);
-        }
-    };
 
     // Filters
     const [filterAssignee, setFilterAssignee] = useState('ALL');
@@ -362,17 +343,6 @@ export default function RitusBoard() {
                                 ⚙️ Rutin Şablon Planlayıcı ({templates.length})
                             </button>
                         </div>
-
-                        <button
-                            type="button"
-                            onClick={handleDownloadPdf}
-                            disabled={exportingPdf}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition-all disabled:opacity-50"
-                            title="HADMEK / HADYEK Resmi Vivarium Denetim ve Performans Raporunu PDF Olarak İndir"
-                        >
-                            <FileText size={15} />
-                            {exportingPdf ? 'PDF Hazırlanıyor...' : 'Resmi Denetim PDF'}
-                        </button>
 
                         <button
                             type="button"

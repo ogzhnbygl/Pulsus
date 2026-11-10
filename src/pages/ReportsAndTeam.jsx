@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import {
-    Download,
     FileText,
     Palmtree,
     RotateCcw,
     ShieldAlert,
     Building2,
     Users,
-    Settings,
     AlertCircle,
     X
 } from 'lucide-react';
@@ -93,56 +90,6 @@ export default function ReportsAndTeam() {
         }
     };
 
-    const exportJson = () => {
-        if (!report) return;
-        const blob = new Blob([JSON.stringify(report, null, 2)], {
-            type: 'application/json'
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `pulsus-performans-raporu-${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    const exportCsv = () => {
-        if (!report?.staffMetrics) return;
-        const headers = [
-            'Ad Soyad',
-            'E-Posta',
-            'Rol',
-            'Atanan Ritus',
-            'Tamamlanan Ritus',
-            'Tekrarlatma (Revizyon) Sayısı',
-            'Hekime Eskalasyon',
-            'Circa İzin Devri (Çıkan)',
-            'Yedek Olarak Devralınan',
-            'Tamamlanan Sequa'
-        ];
-        const rows = report.staffMetrics.map(s => [
-            `"${s.name || ''}"`,
-            `"${s.email || ''}"`,
-            `"${s.pulsusRole || ''}"`,
-            s.totalRitusAssigned || 0,
-            s.ritusCompleted || 0,
-            s.totalRevisionsReceived || 0,
-            s.escalatedCount || 0,
-            s.delegatedOutByLeave || 0,
-            s.delegatedInAsBackup || 0,
-            s.sequaCompleted || 0
-        ]);
-        const csvContent =
-            '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `pulsus-personel-performans-${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
     if (loading) {
         return (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center text-xs text-slate-400">
@@ -192,41 +139,16 @@ export default function ReportsAndTeam() {
                     </h1>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                    {isVet && (
-                        <Link
-                            to="/staff"
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-xs font-bold text-indigo-700"
-                        >
-                            <Settings size={14} />
-                            Personel &amp; Rol Yönetimi Sayfası
-                        </Link>
-                    )}
+                <div className="flex items-center gap-2">
                     <button
                         type="button"
                         onClick={exportPdf}
                         disabled={exportingPdf}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-xs font-bold text-white shadow-xs transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-xs font-bold text-white shadow-xs transition-colors"
                         title="HADMEK / HADYEK Resmi Vivarium Denetim Raporu PDF İndir"
                     >
-                        <FileText size={14} />
+                        <FileText size={15} />
                         {exportingPdf ? 'PDF Hazırlanıyor...' : 'Denetim PDF İndir'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={exportCsv}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700"
-                    >
-                        <Download size={14} />
-                        CSV İndir
-                    </button>
-                    <button
-                        type="button"
-                        onClick={exportJson}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-bold text-white"
-                    >
-                        <Download size={14} />
-                        JSON Raporu
                     </button>
                 </div>
             </div>
