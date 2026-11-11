@@ -644,7 +644,7 @@ export default function RitusBoard() {
                                                         )}
 
                                                         {/* Action Buttons */}
-                                                        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                                                        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
                                                             {isMyRun && run.status === 'todo' && (
                                                                 <button
                                                                     type="button"
@@ -654,7 +654,7 @@ export default function RitusBoard() {
                                                                             'start'
                                                                         )
                                                                     }
-                                                                    className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold hover:bg-indigo-700"
+                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700"
                                                                 >
                                                                     Başlat
                                                                 </button>
@@ -673,7 +673,7 @@ export default function RitusBoard() {
                                                                                 'submit_for_review'
                                                                             )
                                                                         }
-                                                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
                                                                     >
                                                                         Kontrole Gönder
                                                                     </button>
@@ -696,7 +696,7 @@ export default function RitusBoard() {
                                                                                     }
                                                                                 )
                                                                             }
-                                                                            className="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold"
+                                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold"
                                                                         >
                                                                             ✅ Onayla
                                                                         </button>
@@ -710,7 +710,7 @@ export default function RitusBoard() {
                                                                                         'request_revision'
                                                                                 })
                                                                             }
-                                                                            className="px-2 py-1 rounded-lg bg-amber-600 text-white text-[11px] font-bold"
+                                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold"
                                                                         >
                                                                             🔄 Tekrarlat
                                                                         </button>
@@ -726,7 +726,7 @@ export default function RitusBoard() {
                                                                                             'escalate_to_vet'
                                                                                     })
                                                                                 }
-                                                                                className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-bold"
+                                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-rose-600 text-white text-xs font-bold"
                                                                             >
                                                                                 ⚠️ Hekime Bildir
                                                                             </button>
@@ -745,7 +745,7 @@ export default function RitusBoard() {
                                                                                 'vet_reassign'
                                                                         })
                                                                     }
-                                                                    className="px-2 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
+                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold"
                                                                 >
                                                                     Yönlendir
                                                                 </button>
@@ -759,10 +759,10 @@ export default function RitusBoard() {
                                                                         run
                                                                     })
                                                                 }
-                                                                className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[10px] font-semibold inline-flex items-center gap-1 ml-auto"
+                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold gap-1.5 ml-auto"
                                                                 title="Bu rutin görevden Sequa kaydı / arıza bildirimi doğur"
                                                             >
-                                                                <Link2 size={11} />
+                                                                <Link2 size={13} />
                                                                 Sequa Aç
                                                             </button>
 
@@ -770,10 +770,10 @@ export default function RitusBoard() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleDeleteRun(run._id)}
-                                                                    className="p-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700"
+                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700"
                                                                     title="Görev kartını sil"
                                                                 >
-                                                                    <Trash2 size={11} />
+                                                                    <Trash2 size={14} />
                                                                 </button>
                                                             )}
                                                         </div>
@@ -924,6 +924,7 @@ export default function RitusBoard() {
             {/* Ritus Template Create / Edit Modal with CRITICAL updateScope ('current_week' vs 'next_week') */}
             {templateModalOpen && (
                 <RitusTemplateModal
+                    key={editingTemplate?._id ? `template-${editingTemplate._id}` : 'new-template-modal'}
                     isOpen={templateModalOpen}
                     onClose={() => setTemplateModalOpen(false)}
                     initialTemplate={editingTemplate}
@@ -950,6 +951,7 @@ export default function RitusBoard() {
             )}
 
             <RitusActionModal
+                key={actionModal.run?._id ? `action-${actionModal.run._id}-${actionModal.actionType}` : 'action-modal'}
                 isOpen={actionModal.open}
                 onClose={() => setActionModal({ open: false, run: null, actionType: null })}
                 run={actionModal.run}
@@ -972,6 +974,7 @@ export default function RitusBoard() {
             />
 
             <CreateSequaModal
+                key={spawnSequaModal.run?._id ? `create-sequa-${spawnSequaModal.run._id}` : 'create-sequa-modal'}
                 isOpen={spawnSequaModal.open}
                 onClose={() => setSpawnSequaModal({ open: false, run: null })}
                 user={user}

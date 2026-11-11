@@ -302,7 +302,7 @@ export default function PulseDashboard() {
                                                 Asil: {getMemberName(run.primaryAssignee, members)} •{' '}
                                                 {formatScheduledBadge(run.scheduledDate, run.scheduledTime)}
                                             </div>
-                                            <div className="flex items-center gap-1.5 pt-1">
+                                            <div className="flex items-center gap-2 pt-1 flex-wrap">
                                                 <button
                                                     type="button"
                                                     onClick={() =>
@@ -312,7 +312,7 @@ export default function PulseDashboard() {
                                                             actionType: 'vet_reassign'
                                                         })
                                                     }
-                                                    className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-bold text-[11px] hover:bg-indigo-700"
+                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700"
                                                 >
                                                     Personele Yönlendir
                                                 </button>
@@ -323,7 +323,7 @@ export default function PulseDashboard() {
                                                             note: 'Veteriner Hekim tarafından doğrudan tamamlandı.'
                                                         })
                                                     }
-                                                    className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-amber-900 font-semibold text-[11px] hover:bg-amber-100"
+                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-white border border-amber-300 text-amber-900 font-semibold text-xs hover:bg-amber-100"
                                                 >
                                                     Kendim Tamamla
                                                 </button>
@@ -367,7 +367,7 @@ export default function PulseDashboard() {
                                                     <strong>Not:</strong> {run.escalationNote}
                                                 </div>
                                             )}
-                                            <div className="flex items-center gap-1.5 pt-1">
+                                            <div className="flex items-center gap-2 pt-1 flex-wrap">
                                                 <button
                                                     type="button"
                                                     onClick={() =>
@@ -377,7 +377,7 @@ export default function PulseDashboard() {
                                                             actionType: 'request_revision'
                                                         })
                                                     }
-                                                    className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-[11px]"
+                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
                                                 >
                                                     🔄 Tekrarlat
                                                 </button>
@@ -388,7 +388,7 @@ export default function PulseDashboard() {
                                                             note: 'Hekim kontrolüyle kapatıldı.'
                                                         })
                                                     }
-                                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px]"
+                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
                                                 >
                                                     ✓ Onayla &amp; Kapat
                                                 </button>
@@ -437,13 +437,13 @@ export default function PulseDashboard() {
                                                     {task.description}
                                                 </p>
                                             )}
-                                            <div className="flex items-center gap-1.5 pt-1">
+                                            <div className="flex items-center gap-2 pt-1 flex-wrap">
                                                 <button
                                                     type="button"
                                                     onClick={() =>
                                                         setConvertModal({ open: true, task })
                                                     }
-                                                    className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-bold text-[11px]"
+                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                                                 >
                                                     Göreve / Dış Birime Dönüştür
                                                 </button>
@@ -454,7 +454,7 @@ export default function PulseDashboard() {
                                                             note: 'Veteriner Hekim tarafından incelendi ve çözüldü.'
                                                         })
                                                     }
-                                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px]"
+                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
                                                 >
                                                     ✓ Çözüldü
                                                 </button>
@@ -513,7 +513,7 @@ export default function PulseDashboard() {
                                     )}
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-indigo-100">
+                                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-indigo-100">
                                     <button
                                         type="button"
                                         onClick={() =>
@@ -521,7 +521,7 @@ export default function PulseDashboard() {
                                                 note: 'Denetimden geçti, onaylandı.'
                                             })
                                         }
-                                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
                                     >
                                         ✅ Onayla
                                     </button>
@@ -534,7 +534,7 @@ export default function PulseDashboard() {
                                                 actionType: 'request_revision'
                                             })
                                         }
-                                        className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
+                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
                                     >
                                         🔄 Tekrarlat
                                     </button>
@@ -547,7 +547,7 @@ export default function PulseDashboard() {
                                                 actionType: 'escalate_to_vet'
                                             })
                                         }
-                                        className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
+                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
                                     >
                                         ⚠️ Hekime Bildir
                                     </button>
@@ -590,7 +590,7 @@ export default function PulseDashboard() {
                                                 note: 'Eksiklikler giderilerek tekrar kontrole gönderildi.'
                                             })
                                         }
-                                        className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700"
+                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
                                     >
                                         Eksikleri Giderdim &amp; Tekrar Kontrole Gönder
                                     </button>
@@ -726,7 +726,7 @@ export default function PulseDashboard() {
                                                 </strong>
                                             </span>
 
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -736,10 +736,10 @@ export default function PulseDashboard() {
                                                         );
                                                         setSequaModalOpen(true);
                                                     }}
-                                                    className="px-2 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold inline-flex items-center gap-1"
+                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs gap-1.5"
                                                     title="Bu rutinde karşılaşılan sorunu bildir"
                                                 >
-                                                    <Link2 size={12} />
+                                                    <Link2 size={13} />
                                                     {isCaretaker ? 'Sorun Bildir' : 'Sorun / Sequa Aç'}
                                                 </button>
 
@@ -749,7 +749,7 @@ export default function PulseDashboard() {
                                                         onClick={() =>
                                                             handleRitusQuickAction(run._id, 'start')
                                                         }
-                                                        className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                                                     >
                                                         Başlat
                                                     </button>
@@ -766,9 +766,9 @@ export default function PulseDashboard() {
                                                                 'submit_for_review'
                                                             )
                                                         }
-                                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1"
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
                                                     >
-                                                        <CheckCircle2 size={12} />
+                                                        <CheckCircle2 size={13} />
                                                         Kontrole Gönder
                                                     </button>
                                                 )}
@@ -868,14 +868,14 @@ export default function PulseDashboard() {
                                                 </strong>
                                             </span>
 
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 {task.status === 'reported' && !isCaretaker && (
                                                     <button
                                                         type="button"
                                                         onClick={() =>
                                                             setConvertModal({ open: true, task })
                                                         }
-                                                        className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-bold"
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                                                     >
                                                         Göreve Dönüştür
                                                     </button>
@@ -890,7 +890,7 @@ export default function PulseDashboard() {
                                                                 { status: 'in_progress' }
                                                             )
                                                         }
-                                                        className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-bold"
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                                                     >
                                                         İşleme Al
                                                     </button>
@@ -905,7 +905,7 @@ export default function PulseDashboard() {
                                                                 { status: 'review' }
                                                             )
                                                         }
-                                                        className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold"
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
                                                     >
                                                         Kontrole Gönder
                                                     </button>
@@ -919,7 +919,7 @@ export default function PulseDashboard() {
                                                                 'approve'
                                                             )
                                                         }
-                                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold"
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
                                                     >
                                                         ✓ Tamamla
                                                     </button>
@@ -936,6 +936,7 @@ export default function PulseDashboard() {
 
             {/* Modals */}
             <CreateSequaModal
+                key={sourceRitusForSequa?._id ? `create-sequa-${sourceRitusForSequa._id}` : (sequaModalInitialType ? `create-sequa-${sequaModalInitialType}` : 'create-sequa-modal')}
                 isOpen={sequaModalOpen}
                 onClose={() => setSequaModalOpen(false)}
                 onSubmit={handleCreateSequa}
@@ -946,6 +947,7 @@ export default function PulseDashboard() {
             />
 
             <RitusActionModal
+                key={actionModal.run?._id ? `action-${actionModal.run._id}-${actionModal.actionType}` : 'action-modal'}
                 isOpen={actionModal.open}
                 onClose={() => setActionModal({ open: false, run: null, actionType: null })}
                 run={actionModal.run}
@@ -968,6 +970,7 @@ export default function PulseDashboard() {
             />
 
             <ConvertIssueModal
+                key={convertModal.task?._id || 'convert-modal'}
                 isOpen={convertModal.open}
                 onClose={() => setConvertModal({ open: false, task: null })}
                 task={convertModal.task}

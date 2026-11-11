@@ -384,7 +384,7 @@ export default function SequaBoard() {
 
                                                 {/* Action Buttons */}
                                                 {(task.status !== 'done' || isVet || isTechnician) && (
-                                                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                                                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
                                                         {task.status === 'reported' &&
                                                             !isCaretaker && (
                                                                 <button
@@ -395,7 +395,7 @@ export default function SequaBoard() {
                                                                             task
                                                                         })
                                                                     }
-                                                                    className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold"
+                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
                                                                 >
                                                                     Göreve Dönüştür &amp; Ata
                                                                 </button>
@@ -411,7 +411,7 @@ export default function SequaBoard() {
                                                                         { status: 'in_progress' }
                                                                     )
                                                                 }
-                                                                className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold"
+                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
                                                             >
                                                                 Başlat
                                                             </button>
@@ -427,7 +427,7 @@ export default function SequaBoard() {
                                                                         { status: 'review' }
                                                                     )
                                                                 }
-                                                                className="px-2.5 py-1 rounded-lg bg-amber-600 text-white text-[11px] font-bold"
+                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
                                                             >
                                                                 Kontrole Gönder
                                                             </button>
@@ -443,9 +443,9 @@ export default function SequaBoard() {
                                                                             'approve'
                                                                         )
                                                                     }
-                                                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1"
+                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5"
                                                                 >
-                                                                    <CheckCircle2 size={11} />
+                                                                    <CheckCircle2 size={13} />
                                                                     Onayla &amp; Kapat
                                                                 </button>
                                                             )}
@@ -458,7 +458,7 @@ export default function SequaBoard() {
                                                                 String(
                                                                     user?.email || ''
                                                                 ).toLowerCase()) && (
-                                                            <div className="flex items-center gap-1 ml-auto">
+                                                            <div className="flex items-center gap-2 ml-auto">
                                                                 {(task.status === 'todo' ||
                                                                     task.status === 'reported' ||
                                                                     isVet) && (
@@ -468,10 +468,10 @@ export default function SequaBoard() {
                                                                             setEditingTask(task);
                                                                             setCreateModalOpen(true);
                                                                         }}
-                                                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold"
+                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold"
                                                                         title="Görevi düzenle"
                                                                     >
-                                                                        <Edit3 size={11} />
+                                                                        <Edit3 size={13} />
                                                                         Düzenle
                                                                     </button>
                                                                 )}
@@ -480,10 +480,10 @@ export default function SequaBoard() {
                                                                     onClick={() =>
                                                                         handleDeleteTask(task._id)
                                                                     }
-                                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold"
+                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold"
                                                                     title="Görevi sil"
                                                                 >
-                                                                    <Trash2 size={11} />
+                                                                    <Trash2 size={13} />
                                                                     Sil
                                                                 </button>
                                                             </div>
@@ -502,6 +502,7 @@ export default function SequaBoard() {
 
             {createModalOpen && (
                 <CreateSequaModal
+                    key={editingTask?._id ? `edit-${editingTask._id}` : (initialModalType ? `create-sequa-${initialModalType}` : 'create-sequa-modal')}
                     isOpen={createModalOpen}
                     onClose={() => {
                         setCreateModalOpen(false);
@@ -530,6 +531,7 @@ export default function SequaBoard() {
             )}
 
             <ConvertIssueModal
+                key={convertModal.task?._id || 'convert-modal'}
                 isOpen={convertModal.open}
                 onClose={() => setConvertModal({ open: false, task: null })}
                 task={convertModal.task}

@@ -57,6 +57,7 @@ export default async function handler(req, res) {
     let user;
     try {
         user = await verifyUser(req);
+        req.user = user;
     } catch (error) {
         return res.status(error.status || 401).json({ error: error.message });
     }
@@ -298,9 +299,16 @@ export default async function handler(req, res) {
                         }
                     );
                 } else if (Array.isArray(data.checklist)) {
+                    const sanitizedChecklist = data.checklist.map(item => ({
+                        ...item,
+                        done: Boolean(item.done),
+                        completedBy: item.done ? (req.user?.email || userEmail) : null,
+                        completedAt: item.done ? now : null
+                    }));
+
                     await runsCol.updateOne(
                         { _id: runObjectId },
-                        { $set: { checklist: data.checklist, updatedAt: now } }
+                        { $set: { checklist: sanitizedChecklist, updatedAt: now } }
                     );
                 }
 
@@ -453,6 +461,16 @@ export default async function handler(req, res) {
                         error: 'Veteriner Hekime eskalasyon yalnızca Tekniker veya Denetçi tarafından yapılabilir.'
                     });
                 }
+                if (['done', 'escalated'].includes(run.status)) {
+                    return res.status(400).json({
+                        error: `Tamamlanmış veya zaten sevk edilmiş bir görev tekrar eskalasyona gönderilemez (Mevcut durum: '${run.status}').`
+                    });
+                }
+                if (!['in_progress', 'needs_revision', 'pending_review'].includes(run.status)) {
+                    return res.status(400).json({
+                        error: `Yalnızca devam eden, revizyon gereken veya denetim bekleyen görevler eskalasyona yönlendirilebilir (Mevcut durum: '${run.status}').`
+                    });
+                }
                 if (!data.note || data.note.trim().length < 2) {
                     return res.status(400).json({
                         error: 'Veteriner Hekime sevk (eskalasyon) gerekçesi belirtilmelidir.'
@@ -468,7 +486,6 @@ export default async function handler(req, res) {
                 };
 
                 let spawnedSequaTask = null;
-                const spawnedIds = Array.isArray(run.spawnedSequaIds) ? [...run.spawnedSequaIds] : [];
 
                 if (data.spawnSequa) {
                     const sequaCol = db.collection('sequa_tasks');
@@ -502,7 +519,6 @@ export default async function handler(req, res) {
                         createdAt: now,
                         updatedAt: now
                     };
-                    const updatedSpawnedIds = [...spawnedIds, sequaId.toString()];
 
                     const updateRunPayload = {
                         $set: {
@@ -512,8 +528,10 @@ export default async function handler(req, res) {
                             escalatedBy: userEmail,
                             escalatedAt: now,
                             effectiveReviewer: VET_EMAIL,
-                            spawnedSequaIds: updatedSpawnedIds,
                             updatedAt: now
+                        },
+                        $addToSet: {
+                            spawnedSequaIds: sequaId.toString()
                         },
                         $push: { reviewHistory: historyItem }
                     };
@@ -590,7 +608,6 @@ export default async function handler(req, res) {
                                 escalatedBy: userEmail,
                                 escalatedAt: now,
                                 effectiveReviewer: VET_EMAIL,
-                                spawnedSequaIds: spawnedIds,
                                 updatedAt: now
                             },
                             $push: { reviewHistory: historyItem }

@@ -3,6 +3,62 @@ import autoTable from 'jspdf-autotable';
 import { getRoleBadgeInfo, getMemberName, apiFetch, DEFAULT_STAFF_DIRECTORY } from './pulsusHelpers';
 
 /**
+ * Replaces Turkish characters with ASCII/Latin-1 equivalents for standard Helvetica font fallback.
+ * 
+ * @param {string} text - Input text
+ * @returns {string} Sanitized text
+ */
+export function sanitizeTurkishChars(text) {
+    if (typeof text !== 'string') return text;
+    const turkishCharMap = {
+        'ş': 's', 'Ş': 'S',
+        'ğ': 'g', 'Ğ': 'G',
+        'ı': 'i', 'İ': 'I',
+        'ç': 'c', 'Ç': 'C',
+        'ö': 'o', 'Ö': 'O',
+        'ü': 'u', 'Ü': 'U'
+    };
+    return text.replace(/[şŞğĞıİçÇöÖüÜ]/g, char => turkishCharMap[char] || char);
+}
+
+/**
+ * Checks if vertical space remaining on current page is sufficient for required budget.
+ * If not, adds a new page and returns the top margin.
+ *
+ * @param {jsPDF} doc - jsPDF instance
+ * @param {number} currentY - Current vertical position
+ * @param {number} requiredBudgetMm - Required vertical space in mm
+ * @param {number} [topMargin=20] - Top margin for new page
+ * @param {number} [bottomMargin=20] - Bottom margin threshold
+ * @returns {number} Updated vertical position (currentY or topMargin)
+ */
+export function checkPageBudget(doc, currentY, requiredBudgetMm = 35, topMargin = 20, bottomMargin = 20) {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    if (currentY + requiredBudgetMm > pageHeight - bottomMargin) {
+        doc.addPage();
+        return topMargin;
+    }
+    return currentY;
+}
+
+/**
+ * Deeply sanitizes objects, arrays, and strings if needsSanitize is true.
+ */
+function sanitizeForPdf(val, needsSanitize) {
+    if (!needsSanitize || val === null || val === undefined) return val;
+    if (typeof val === 'string') return sanitizeTurkishChars(val);
+    if (Array.isArray(val)) return val.map(v => sanitizeForPdf(v, needsSanitize));
+    if (typeof val === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(val)) {
+            out[k] = sanitizeForPdf(v, needsSanitize);
+        }
+        return out;
+    }
+    return val;
+}
+
+/**
  * Loads a font from a public URL and converts it to Base64 for jsPDF VFS.
  */
 async function loadFontAsBase64(url) {
@@ -51,6 +107,7 @@ export async function exportAuditReportPdf({
 
     let fontNormal = 'helvetica';
     let fontBold = 'helvetica';
+    let isCustomFontLoaded = false;
 
     // Attempt to load Tinos fonts for full Turkish character support
     try {
@@ -68,12 +125,19 @@ export async function exportAuditReportPdf({
         fontNormal = 'Tinos';
         fontBold = 'Tinos';
         doc.setFont('Tinos', 'normal');
+        isCustomFontLoaded = true;
     } catch (fontErr) {
         console.warn('Tinos font embedding failed, falling back to Helvetica:', fontErr);
         fontNormal = 'helvetica';
         fontBold = 'helvetica';
         doc.setFont('helvetica', 'normal');
+        isCustomFontLoaded = false;
     }
+
+    const needsSanitize = !isCustomFontLoaded;
+    const renderText = (text, x, y, options) => {
+        doc.text(needsSanitize ? sanitizeTurkishChars(text) : text, x, y, options);
+    };
 
     const marginX = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -89,7 +153,7 @@ export async function exportAuditReportPdf({
     doc.setFont(fontBold, 'bold');
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42); // Slate-900
-    doc.text(
+    renderText(
         'WildType Deney Hayvanları Araştırma Laboratuvarı - Pulsus Rutin ve Denetim Raporu',
         marginX,
         currentY
@@ -99,7 +163,7 @@ export async function exportAuditReportPdf({
     doc.setFont(fontNormal, 'normal');
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139); // Slate-500
-    doc.text(
+    renderText(
         'T.C. Tarım ve Orman Bakanlığı HADMEK / HADYEK Mevzuatı Vivarium Operasyon ve Kalite Denetim Özeti',
         marginX,
         currentY
@@ -127,6 +191,21 @@ export async function exportAuditReportPdf({
 
     const auditRefCode = `PUL-AUD-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+    const metadataBody = [
+        [
+            'Rapor Düzenleme Tarihi:',
+            reportDateStr,
+            'Raporu Oluşturan Hekim:',
+            auditorName
+        ],
+        [
+            'Seçili Denetim Aralığı:',
+            dateRangeText,
+            'Resmi Denetim Referansı:',
+            auditRefCode
+        ]
+    ];
+
     autoTable(doc, {
         startY: currentY,
         margin: { left: marginX, right: marginX },
@@ -144,25 +223,19 @@ export async function exportAuditReportPdf({
             2: { font: fontBold, fontStyle: 'bold', textColor: [30, 41, 59], cellWidth: 38 },
             3: { cellWidth: 52 }
         },
-        body: [
-            [
-                'Rapor Düzenleme Tarihi:',
-                reportDateStr,
-                'Raporu Oluşturan Hekim:',
-                auditorName
-            ],
-            [
-                'Seçili Denetim Aralığı:',
-                dateRangeText,
-                'Resmi Denetim Referansı:',
-                auditRefCode
-            ]
-        ]
+        body: sanitizeForPdf(metadataBody, needsSanitize),
+        didParseCell: data => {
+            if (needsSanitize && typeof data.cell.text === 'string') {
+                data.cell.text = sanitizeTurkishChars(data.cell.text);
+            }
+        }
     });
 
     currentY = doc.lastAutoTable.finalY + 7;
 
     // --- Section 1: KPI Tablosu ---
+    currentY = checkPageBudget(doc, currentY, 35);
+
     const summary = report?.summary || {};
     const externalTasks = report?.externalTasks || [];
     const totalRuns = summary.totalRuns ?? summary.totalRitusRuns ?? 0;
@@ -176,30 +249,34 @@ export async function exportAuditReportPdf({
     doc.setFont(fontBold, 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(30, 41, 59);
-    doc.text('1. Vivarium Genel Operasyon ve KPI İcmali', marginX, currentY);
+    renderText('1. Vivarium Genel Operasyon ve KPI İcmali', marginX, currentY);
     currentY += 3;
+
+    const kpiHead = [
+        [
+            'Toplam Rutin',
+            'Tamamlanma Oranı',
+            'Revizyon Oranı (Tekrarlatma)',
+            'Sevk Edilen Görevler (Eskale / Dış Birim)'
+        ]
+    ];
+
+    const kpiBody = [
+        [
+            `${totalRuns} Rutin Görevi`,
+            `%${completionRate} (${completedRuns} tamamlandı)`,
+            `%${revisionRate} (${totalRevisions} denetçi revizyonu)`,
+            `${totalEscalations} Hekim Eskalasyonu • ${totalExternal} Dış Birim (Sequa)`
+        ]
+    ];
 
     autoTable(doc, {
         startY: currentY,
         margin: { left: marginX, right: marginX },
         theme: 'grid',
         tableWidth: contentWidth,
-        head: [
-            [
-                'Toplam Rutin',
-                'Tamamlanma Oranı',
-                'Revizyon Oranı (Tekrarlatma)',
-                'Sevk Edilen Görevler (Eskale / Dış Birim)'
-            ]
-        ],
-        body: [
-            [
-                `${totalRuns} Rutin Görevi`,
-                `%${completionRate} (${completedRuns} tamamlandı)`,
-                `%${revisionRate} (${totalRevisions} denetçi revizyonu)`,
-                `${totalEscalations} Hekim Eskalasyonu • ${totalExternal} Dış Birim (Sequa)`
-            ]
-        ],
+        head: sanitizeForPdf(kpiHead, needsSanitize),
+        body: sanitizeForPdf(kpiBody, needsSanitize),
         styles: {
             font: fontNormal,
             fontSize: 8.5,
@@ -218,6 +295,11 @@ export async function exportAuditReportPdf({
             textColor: [15, 23, 42],
             font: fontBold,
             fontStyle: 'bold'
+        },
+        didParseCell: data => {
+            if (needsSanitize && typeof data.cell.text === 'string') {
+                data.cell.text = sanitizeTurkishChars(data.cell.text);
+            }
         }
     });
 
@@ -225,6 +307,12 @@ export async function exportAuditReportPdf({
     currentY = doc.lastAutoTable.finalY + 2;
     const backupCount = summary.totalBackupHandovers ?? 0;
     const vetFallbackCount = summary.totalVetFallbacks ?? 0;
+
+    const subKpiBody = [
+        [
+            `• Circa İzin Devri ile Yedeğe Aktarılan: ${backupCount} görev    • Asil ve Yedek İzinli Olması Nedeniyle Hekime Düşen: ${vetFallbackCount} görev    • Bekleyen Denetim İncelemesi: ${summary.pendingReviewRuns ?? 0}`
+        ]
+    ];
 
     autoTable(doc, {
         startY: currentY,
@@ -237,20 +325,23 @@ export async function exportAuditReportPdf({
             cellPadding: 1,
             textColor: [100, 116, 139]
         },
-        body: [
-            [
-                `• Circa İzin Devri ile Yedeğe Aktarılan: ${backupCount} görev    • Asil ve Yedek İzinli Olması Nedeniyle Hekime Düşen: ${vetFallbackCount} görev    • Bekleyen Denetim İncelemesi: ${summary.pendingReviewRuns ?? 0}`
-            ]
-        ]
+        body: sanitizeForPdf(subKpiBody, needsSanitize),
+        didParseCell: data => {
+            if (needsSanitize && typeof data.cell.text === 'string') {
+                data.cell.text = sanitizeTurkishChars(data.cell.text);
+            }
+        }
     });
 
     currentY = doc.lastAutoTable.finalY + 8;
 
     // --- Section 2: Personel Performans ve Tamamlama Tablosu ---
+    currentY = checkPageBudget(doc, currentY, 35);
+
     doc.setFont(fontBold, 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(30, 41, 59);
-    doc.text('2. Personel Performans, Rutin Tamamlama ve İzin Durumu', marginX, currentY);
+    renderText('2. Personel Performans, Rutin Tamamlama ve İzin Durumu', marginX, currentY);
     currentY += 3;
 
     // Build staff rows if not precomputed
@@ -288,25 +379,27 @@ export async function exportAuditReportPdf({
         ];
     });
 
+    const staffHead = [
+        [
+            'Personel Ad Soyad',
+            'Operasyonel Rol',
+            'Yedek Sorumlu',
+            'İzin Durumu',
+            'Ritus (Biten/Top.)',
+            'Başarı',
+            'Revizyon',
+            'Eskalasyon',
+            'Sequa'
+        ]
+    ];
+
     autoTable(doc, {
         startY: currentY,
         margin: { left: marginX, right: marginX },
         theme: 'striped',
         tableWidth: contentWidth,
-        head: [
-            [
-                'Personel Ad Soyad',
-                'Operasyonel Rol',
-                'Yedek Sorumlu',
-                'İzin Durumu',
-                'Ritus (Biten/Top.)',
-                'Başarı',
-                'Revizyon',
-                'Eskalasyon',
-                'Sequa'
-            ]
-        ],
-        body: staffTableRows,
+        head: sanitizeForPdf(staffHead, needsSanitize),
+        body: sanitizeForPdf(staffTableRows, needsSanitize),
         styles: {
             font: fontNormal,
             fontSize: 7.5,
@@ -334,26 +427,38 @@ export async function exportAuditReportPdf({
             6: { halign: 'center', cellWidth: 14 },
             7: { halign: 'center', cellWidth: 14 },
             8: { halign: 'center', cellWidth: 12 }
+        },
+        didParseCell: data => {
+            if (needsSanitize && typeof data.cell.text === 'string') {
+                data.cell.text = sanitizeTurkishChars(data.cell.text);
+            }
         }
     });
 
     currentY = doc.lastAutoTable.finalY + 8;
 
     // --- Section 3: Son Tekrarlatılan (Revizyon) ve Eskale Edilen Görevler ---
+    currentY = checkPageBudget(doc, currentY, 35);
+
+    doc.setFont(fontBold, 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(30, 41, 59);
+    renderText('3. Denetim Uygunsuzluk & Tekrarlatma (Revizyon) Kayıtları', marginX, currentY);
+    currentY += 3;
+
     const revisions = report?.recentRevisionsAndEscalations || [];
+    const revisionHead = [
+        [
+            'Görev Adı',
+            'Görevli Personel',
+            'Denetçi',
+            'Tekrar',
+            'Durum',
+            'Denetçi Notu / Eskalasyon Gerekçesi'
+        ]
+    ];
+
     if (revisions.length > 0) {
-        // Check if there is enough space on page, otherwise page break handled by autoTable
-        if (currentY > 230) {
-            doc.addPage();
-            currentY = 20;
-        }
-
-        doc.setFont(fontBold, 'bold');
-        doc.setFontSize(10.5);
-        doc.setTextColor(30, 41, 59);
-        doc.text('3. Denetim Uygunsuzluk & Tekrarlatma (Revizyon) Kayıtları', marginX, currentY);
-        currentY += 3;
-
         const revisionRows = revisions.slice(0, 15).map(item => {
             const assignee = getMemberName ? getMemberName(item.effectiveAssignee, members) : item.effectiveAssignee;
             const reviewer = getMemberName ? getMemberName(item.effectiveReviewer, members) : item.effectiveReviewer;
@@ -374,17 +479,8 @@ export async function exportAuditReportPdf({
             margin: { left: marginX, right: marginX },
             theme: 'grid',
             tableWidth: contentWidth,
-            head: [
-                [
-                    'Görev Adı',
-                    'Görevli Personel',
-                    'Denetçi',
-                    'Tekrar',
-                    'Durum',
-                    'Denetçi Notu / Eskalasyon Gerekçesi'
-                ]
-            ],
-            body: revisionRows,
+            head: sanitizeForPdf(revisionHead, needsSanitize),
+            body: sanitizeForPdf(revisionRows, needsSanitize),
             styles: {
                 font: fontNormal,
                 fontSize: 7.2,
@@ -404,6 +500,55 @@ export async function exportAuditReportPdf({
                 3: { halign: 'center', cellWidth: 14 },
                 4: { cellWidth: 24 },
                 5: { cellWidth: 52 }
+            },
+            didParseCell: data => {
+                if (needsSanitize && typeof data.cell.text === 'string') {
+                    data.cell.text = sanitizeTurkishChars(data.cell.text);
+                }
+            }
+        });
+
+        currentY = doc.lastAutoTable.finalY + 8;
+    } else {
+        // If revisions list is empty, display an explicit compliance confirmation row:
+        // "Dönem içinde denetçi revizyonu veya eskalasyon kaydı bulunmamaktadır. (Tam Uyum)"
+        const complianceText = 'Dönem içinde denetçi revizyonu veya eskalasyon kaydı bulunmamaktadır. (Tam Uyum)';
+
+        autoTable(doc, {
+            startY: currentY,
+            margin: { left: marginX, right: marginX },
+            theme: 'grid',
+            tableWidth: contentWidth,
+            head: sanitizeForPdf(revisionHead, needsSanitize),
+            body: [
+                [
+                    {
+                        content: needsSanitize ? sanitizeTurkishChars(complianceText) : complianceText,
+                        colSpan: 6,
+                        styles: {
+                            halign: 'center',
+                            fontStyle: 'bold',
+                            textColor: [16, 185, 129], // Emerald-600
+                            fillColor: [240, 253, 244] // Emerald-50
+                        }
+                    }
+                ]
+            ],
+            styles: {
+                font: fontNormal,
+                fontSize: 8,
+                cellPadding: 3
+            },
+            headStyles: {
+                font: fontBold,
+                fontStyle: 'bold',
+                fillColor: [180, 83, 9], // Amber-700
+                textColor: [255, 255, 255]
+            },
+            didParseCell: data => {
+                if (needsSanitize && typeof data.cell.text === 'string') {
+                    data.cell.text = sanitizeTurkishChars(data.cell.text);
+                }
             }
         });
 
@@ -412,15 +557,12 @@ export async function exportAuditReportPdf({
 
     // --- Section 4: Üniversite Dış Birim & Teknik Servis Kayıtları ---
     if (externalTasks.length > 0) {
-        if (currentY > 230) {
-            doc.addPage();
-            currentY = 20;
-        }
+        currentY = checkPageBudget(doc, currentY, 35);
 
         doc.setFont(fontBold, 'bold');
         doc.setFontSize(10.5);
         doc.setTextColor(30, 41, 59);
-        doc.text('4. Üniversite Dış Birim / Sequa Teknik İş Takibi', marginX, currentY);
+        renderText('4. Üniversite Dış Birim / Sequa Teknik İş Takibi', marginX, currentY);
         currentY += 3;
 
         const externalRows = externalTasks.slice(0, 10).map(t => {
@@ -434,15 +576,17 @@ export async function exportAuditReportPdf({
             ];
         });
 
+        const externalHead = [
+            ['Birim', 'Talep / Arıza Başlığı', 'İç Takipçi', 'Öncelik', 'Durum']
+        ];
+
         autoTable(doc, {
             startY: currentY,
             margin: { left: marginX, right: marginX },
             theme: 'grid',
             tableWidth: contentWidth,
-            head: [
-                ['Birim', 'Talep / Arıza Başlığı', 'İç Takipçi', 'Öncelik', 'Durum']
-            ],
-            body: externalRows,
+            head: sanitizeForPdf(externalHead, needsSanitize),
+            body: sanitizeForPdf(externalRows, needsSanitize),
             styles: {
                 font: fontNormal,
                 fontSize: 7.2,
@@ -461,6 +605,11 @@ export async function exportAuditReportPdf({
                 2: { cellWidth: 32 },
                 3: { halign: 'center', cellWidth: 22 },
                 4: { halign: 'center', cellWidth: 30 }
+            },
+            didParseCell: data => {
+                if (needsSanitize && typeof data.cell.text === 'string') {
+                    data.cell.text = sanitizeTurkishChars(data.cell.text);
+                }
             }
         });
     }
@@ -482,13 +631,13 @@ export async function exportAuditReportPdf({
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184); // Slate-400
 
-        doc.text(
+        renderText(
             'WildType Deney Hayvanları Araştırma Laboratuvarı • Pulsus Rutin ve Denetim Sistemi • Resmi HADMEK/HADYEK Nüshası',
             marginX,
             footerY
         );
 
-        doc.text(
+        renderText(
             `Sayfa ${pageNum} / ${totalPages}`,
             marginX + contentWidth,
             footerY,

@@ -114,7 +114,6 @@ export const AuthProvider = ({ children }) => {
             if (response.status === 403) {
                 const errorData = isJson ? await response.json().catch(() => ({})) : {};
                 console.error('Access Forbidden:', errorData.error);
-                alert(errorData.error || 'Bu uygulamaya erişim yetkiniz bulunmamaktadır.');
                 window.location.href = getApexUrl();
             } else {
                 console.warn('Authentication failed, redirecting to login...');

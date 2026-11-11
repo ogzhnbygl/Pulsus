@@ -257,9 +257,11 @@ export default async function handler(req, res) {
 
             let affectedCurrentWeekRuns = 0;
             if (updateScope === 'current_week') {
+                const currentWeekStart = getMondayOfDate(new Date());
                 const delRuns = await db.collection('ritus_runs').deleteMany({
                     templateId: objectId.toString(),
-                    status: { $ne: 'done' }
+                    weekStart: currentWeekStart,
+                    status: 'todo'
                 });
                 affectedCurrentWeekRuns = delRuns.deletedCount || 0;
             }
