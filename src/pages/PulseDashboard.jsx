@@ -893,29 +893,50 @@ export default function PulseDashboard() {
                                                         onClick={() =>
                                                             handleRitusQuickAction(run._id, 'start')
                                                         }
-                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs"
                                                     >
                                                         Başlat
                                                     </button>
                                                 )}
 
-                                                {(run.status === 'todo' ||
-                                                    run.status === 'in_progress' ||
-                                                    run.status === 'needs_revision') && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleRitusQuickAction(
-                                                                run._id,
-                                                                'submit_for_review'
-                                                            )
+                                                {(run.status === 'in_progress' ||
+                                                    run.status === 'needs_revision') &&
+                                                    (() => {
+                                                        const checklist = Array.isArray(run.checklist)
+                                                            ? run.checklist
+                                                            : [];
+                                                        const totalItems = checklist.length;
+                                                        const doneItems = checklist.filter(
+                                                            i => i.done
+                                                        ).length;
+                                                        const allItemsDone =
+                                                            totalItems === 0 ||
+                                                            doneItems === totalItems;
+
+                                                        if (allItemsDone) {
+                                                            return (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        handleRitusQuickAction(
+                                                                            run._id,
+                                                                            'submit_for_review'
+                                                                        )
+                                                                    }
+                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-xs"
+                                                                >
+                                                                    <CheckCircle2 size={14} />
+                                                                    Kontrole Gönder
+                                                                </button>
+                                                            );
                                                         }
-                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
-                                                    >
-                                                        <CheckCircle2 size={13} />
-                                                        Kontrole Gönder
-                                                    </button>
-                                                )}
+
+                                                        return (
+                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-semibold text-xs border border-slate-200">
+                                                                {doneItems}/{totalItems} Madde Tamamlandı
+                                                            </span>
+                                                        );
+                                                    })()}
 
                                                 {run.status === 'pending_review' && (
                                                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-semibold text-xs">

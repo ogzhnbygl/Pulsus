@@ -688,10 +688,15 @@ export default function RitusBoard() {
                                                             )}
 
                                                             {isMyRun &&
-                                                                (run.status === 'todo' ||
-                                                                    run.status === 'in_progress' ||
+                                                                (run.status === 'in_progress' ||
                                                                     run.status ===
-                                                                        'needs_revision') && (
+                                                                        'needs_revision') &&
+                                                                (Array.isArray(run.checklist) &&
+                                                                run.checklist.length > 0
+                                                                    ? run.checklist.every(
+                                                                          i => i.done
+                                                                      )
+                                                                    : true) && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() =>
@@ -700,7 +705,7 @@ export default function RitusBoard() {
                                                                                 'submit_for_review'
                                                                             )
                                                                         }
-                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs"
                                                                     >
                                                                         Kontrole Gönder
                                                                     </button>
