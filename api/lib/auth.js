@@ -151,28 +151,39 @@ export async function verifyUser(req) {
         throw { status: status || 401, message: error || 'Authentication failed' };
     }
 
-    const client = await clientPromise;
-    const db = client.db(getDbName('Pulsus_db'));
-    if (Date.now() - lastDefaultMembersSync >= DEFAULT_MEMBERS_SYNC_TTL_MS) {
-        await ensureDefaultMembers(db, client);
+    const normalizedEmail = user.email.toLowerCase();
+    const isAdmin = user.role === 'admin' || normalizedEmail === VET_EMAIL;
+    let member = null;
+
+    try {
+        const client = await clientPromise;
+        const db = client.db(getDbName('Pulsus_db'));
+        if (Date.now() - lastDefaultMembersSync >= DEFAULT_MEMBERS_SYNC_TTL_MS) {
+            await ensureDefaultMembers(db, client).catch(() => {});
+        }
+
+        const membersCol = db.collection('members');
+        member = await membersCol.findOne({
+            email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+        });
+
+        if (!member) {
+            const defaultProfile = resolveDefaultMemberProfile(normalizedEmail, user.name, isAdmin);
+            const now = new Date();
+            const newDoc = {
+                ...defaultProfile,
+                createdAt: now,
+                updatedAt: now
+            };
+            await membersCol.insertOne(newDoc).catch(() => {});
+            member = newDoc;
+        }
+    } catch (err) {
+        console.warn('[auth] Member profile db lookup warning:', err.message);
     }
 
-    const membersCol = db.collection('members');
-    const normalizedEmail = user.email.toLowerCase();
-    let member = await membersCol.findOne({ email: normalizedEmail });
-
-    const isAdmin = user.role === 'admin' || normalizedEmail === VET_EMAIL;
-
     if (!member) {
-        const defaultProfile = resolveDefaultMemberProfile(normalizedEmail, user.name, isAdmin);
-        const now = new Date();
-        const newDoc = {
-            ...defaultProfile,
-            createdAt: now,
-            updatedAt: now
-        };
-        await membersCol.insertOne(newDoc);
-        member = newDoc;
+        member = resolveDefaultMemberProfile(normalizedEmail, user.name, isAdmin);
     }
 
     const pulsusRole = member.pulsusRole || (isAdmin ? 'vet' : 'caretaker');
