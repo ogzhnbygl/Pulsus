@@ -15,7 +15,9 @@ import {
     SEQUA_PRIORITIES,
     UNIVERSITY_EXTERNAL_UNITS,
     DEFAULT_STAFF_DIRECTORY,
-    getMemberName
+    getMemberName,
+    getTodayIstanbulDateStr,
+    addDaysStr
 } from '../utils/pulsusHelpers';
 
 /**
@@ -482,7 +484,13 @@ export function RitusActionModal({
     members = DEFAULT_STAFF_DIRECTORY,
     onSubmit
 }) {
+    const todayStr = getTodayIstanbulDateStr();
     const [note, setNote] = useState('');
+    const [newScheduledDate, setNewScheduledDate] = useState(
+        run?.scheduledDate && run.scheduledDate >= todayStr ? run.scheduledDate : todayStr
+    );
+    const [newScheduledTime, setNewScheduledTime] = useState(run?.scheduledTime || '09:00');
+    const [resetChecklist, setResetChecklist] = useState(true);
     const [spawnSequa, setSpawnSequa] = useState(true);
     const [sequaTitle, setSequaTitle] = useState(
         run ? `[Ritus Eskalasyon] ${run.title}` : ''
@@ -517,6 +525,12 @@ export function RitusActionModal({
                 action: actionType,
                 note: note.trim()
             };
+
+            if (actionType === 'request_revision') {
+                payload.newScheduledDate = newScheduledDate;
+                payload.newScheduledTime = newScheduledTime;
+                payload.resetChecklist = resetChecklist;
+            }
 
             if (actionType === 'escalate_to_vet') {
                 payload.spawnSequa = spawnSequa;
@@ -606,6 +620,85 @@ export function RitusActionModal({
                                     </option>
                                 ))}
                             </select>
+                        </div>
+                    )}
+
+                    {actionType === 'request_revision' && (
+                        <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 space-y-3">
+                            <div className="text-xs font-bold text-amber-900 flex items-center justify-between">
+                                <span>📅 Tekrar Planlaması &amp; Yeni Zaman</span>
+                                {run.autoSubmittedAtDayEnd && (
+                                    <span className="text-[10px] bg-rose-100 text-rose-800 font-semibold px-2 py-0.5 rounded border border-rose-200">
+                                        ⏰ Gün Sonu Kaçırılan Görev
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                                        Yeni Planlanan Tarih *
+                                    </label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={newScheduledDate}
+                                        onChange={e => setNewScheduledDate(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold text-slate-800"
+                                    />
+                                    <div className="flex items-center gap-1.5 mt-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewScheduledDate(todayStr)}
+                                            className="px-2 py-0.5 text-[10px] font-bold bg-white text-amber-900 rounded border border-amber-300 hover:bg-amber-100 cursor-pointer"
+                                        >
+                                            Bugün
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewScheduledDate(addDaysStr(todayStr, 1))}
+                                            className="px-2 py-0.5 text-[10px] font-bold bg-white text-amber-900 rounded border border-amber-300 hover:bg-amber-100 cursor-pointer"
+                                        >
+                                            Yarın
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                                        Yeni Planlanan Saat *
+                                    </label>
+                                    <input
+                                        type="time"
+                                        required
+                                        value={newScheduledTime}
+                                        onChange={e => setNewScheduledTime(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold text-slate-800"
+                                    />
+                                    <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                                        {['08:00', '10:00', '13:00', '16:00'].map(t => (
+                                            <button
+                                                key={t}
+                                                type="button"
+                                                onClick={() => setNewScheduledTime(t)}
+                                                className="px-1.5 py-0.5 text-[10px] font-semibold bg-white text-amber-900 rounded border border-amber-300 hover:bg-amber-100 cursor-pointer"
+                                            >
+                                                {t}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <label className="flex items-center gap-2 text-xs font-semibold text-amber-950 cursor-pointer pt-1 border-t border-amber-200">
+                                <input
+                                    type="checkbox"
+                                    checked={resetChecklist}
+                                    onChange={e => setResetChecklist(e.target.checked)}
+                                    className="rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                Kontrol listesi maddelerini sıfırla (Personel baştan uygulayarak tamamlasın)
+                            </label>
                         </div>
                     )}
 

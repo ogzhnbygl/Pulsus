@@ -31,7 +31,9 @@ import {
     formatScheduledBadge,
     formatWeekRangeLabel,
     formatTemplateScheduleSummary,
-    getMemberName
+    getMemberName,
+    getTodayIstanbulDateStr,
+    getWeekDaysList
 } from '../utils/pulsusHelpers';
 import { CreateSequaModal, RitusActionModal } from '../components/TaskModals';
 import ConfirmModal from '../components/ConfirmModal';
@@ -66,6 +68,7 @@ export default function RitusBoard() {
     // Filters
     const [filterAssignee, setFilterAssignee] = useState('ALL');
     const [filterFrequency, setFilterFrequency] = useState('ALL');
+    const [filterDay, setFilterDay] = useState('ALL');
 
     // Modals
     const [actionModal, setActionModal] = useState({ open: false, run: null, actionType: null });
@@ -228,6 +231,10 @@ export default function RitusBoard() {
 
     const myEmail = String(user?.email || '').toLowerCase();
 
+    const todayStr = getTodayIstanbulDateStr();
+    const currentWeekMonday = ritusState.currentWeekStart || ritusState.weekStart;
+    const weekDays = getWeekDaysList(currentWeekMonday);
+
     const filteredRuns = (ritusState.runs || []).filter(run => {
         if (filterAssignee !== 'ALL') {
             if (
@@ -238,6 +245,12 @@ export default function RitusBoard() {
             }
         }
         if (filterFrequency !== 'ALL' && run.frequency !== filterFrequency) {
+            return false;
+        }
+        if (filterDay === 'today' && run.scheduledDate !== todayStr) {
+            return false;
+        }
+        if (filterDay !== 'ALL' && filterDay !== 'today' && run.scheduledDate !== filterDay) {
             return false;
         }
         return true;
@@ -418,8 +431,22 @@ export default function RitusBoard() {
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-2 ml-auto flex-wrap">
                             <SlidersHorizontal size={14} className="text-slate-400 shrink-0" />
+                            <select
+                                value={filterDay}
+                                onChange={e => setFilterDay(e.target.value)}
+                                className="h-9 px-3 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 whitespace-nowrap"
+                            >
+                                <option value="ALL">Tüm Günler (Hafta)</option>
+                                <option value="today">Bugün ({todayStr})</option>
+                                {weekDays.map(d => (
+                                    <option key={d.dateStr} value={d.dateStr}>
+                                        {d.name} ({d.dayNumber})
+                                    </option>
+                                ))}
+                            </select>
+
                             <select
                                 value={filterAssignee}
                                 onChange={e => setFilterAssignee(e.target.value)}

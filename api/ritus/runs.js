@@ -5,7 +5,8 @@ import {
     addDays,
     isFridayDistributionTimeReached,
     distributeWeekPackage,
-    syncPendingRunsWithCircaLeaves
+    syncPendingRunsWithCircaLeaves,
+    autoSubmitEndOfDayMissedRuns
 } from '../../lib/ritusEngine.js';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
@@ -48,10 +49,19 @@ const patchRunSchema = z.object({
     sequaTitle: z.string().max(150).optional(),
     sequaPriority: z.enum(['low', 'medium', 'high', 'critical']).optional().default('high'),
     newAssigneeEmail: z.string().email().optional(),
-    newReviewerEmail: z.string().email().optional()
+    newReviewerEmail: z.string().email().optional(),
+    newScheduledDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Tarih YYYY-MM-DD formatında olmalıdır.')
+        .optional(),
+    newScheduledTime: z
+        .string()
+        .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Saat HH:mm formatında olmalıdır.')
+        .optional(),
+    resetChecklist: z.boolean().optional().default(false)
 });
 
-export { distributeWeekPackage, syncPendingRunsWithCircaLeaves };
+export { distributeWeekPackage, syncPendingRunsWithCircaLeaves, autoSubmitEndOfDayMissedRuns };
 
 export default async function handler(req, res) {
     let user;
@@ -98,6 +108,9 @@ export default async function handler(req, res) {
 
             // Re-sync unstarted ('todo') runs with latest Circa approved leaves
             await syncPendingRunsWithCircaLeaves(client, db, requestedWeek);
+
+            // Automatically sweep and submit past-due uncompleted runs (EOD sweep)
+            await autoSubmitEndOfDayMissedRuns(db);
 
             const filter = { weekStart: requestedWeek };
             if (req.query?.assignee && typeof req.query.assignee === 'string') {
@@ -434,18 +447,50 @@ export default async function handler(req, res) {
                     by: userEmail,
                     byName: user.name,
                     at: now,
-                    note: data.note.trim()
+                    note: data.note.trim(),
+                    previousScheduledDate: run.scheduledDate,
+                    previousScheduledTime: run.scheduledTime,
+                    newScheduledDate: data.newScheduledDate || run.scheduledDate,
+                    newScheduledTime: data.newScheduledTime || run.scheduledTime
                 };
+
+                const updateSet = {
+                    status: 'needs_revision',
+                    lastRevisionNote: data.note.trim(),
+                    lastRevisionBy: userEmail,
+                    updatedAt: now
+                };
+
+                if (data.newScheduledDate) {
+                    updateSet.scheduledDate = data.newScheduledDate;
+                    updateSet.rescheduledAt = now;
+                    updateSet.rescheduledFrom = {
+                        scheduledDate: run.scheduledDate,
+                        scheduledTime: run.scheduledTime
+                    };
+                }
+                if (data.newScheduledTime) {
+                    updateSet.scheduledTime = data.newScheduledTime;
+                }
+
+                if (data.resetChecklist && Array.isArray(run.checklist)) {
+                    updateSet.checklist = run.checklist.map(item => ({
+                        ...item,
+                        done: false,
+                        completedAt: null,
+                        completedBy: null
+                    }));
+                }
+
+                if (data.newAssigneeEmail) {
+                    updateSet.effectiveAssignee = data.newAssigneeEmail.toLowerCase();
+                    updateSet.primaryAssignee = data.newAssigneeEmail.toLowerCase();
+                }
 
                 await runsCol.updateOne(
                     { _id: runObjectId },
                     {
-                        $set: {
-                            status: 'needs_revision',
-                            lastRevisionNote: data.note.trim(),
-                            lastRevisionBy: userEmail,
-                            updatedAt: now
-                        },
+                        $set: updateSet,
                         $inc: { revisionCount: 1 },
                         $push: { reviewHistory: historyItem }
                     }

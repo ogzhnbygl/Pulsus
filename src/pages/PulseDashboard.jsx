@@ -30,7 +30,9 @@ import {
     SEQUA_PRIORITIES,
     SEQUA_TASK_TYPES,
     formatScheduledBadge,
-    getMemberName
+    getMemberName,
+    getTodayIstanbulDateStr,
+    getWeekDaysList
 } from '../utils/pulsusHelpers';
 import {
     CreateSequaModal,
@@ -53,6 +55,7 @@ export default function PulseDashboard() {
     const [actionModal, setActionModal] = useState({ open: false, run: null, actionType: null });
     const [convertModal, setConvertModal] = useState({ open: false, task: null });
     const [notification, setNotification] = useState(null);
+    const [dayFilter, setDayFilter] = useState('today'); // 'today' | 'ALL' | 'past' | 'YYYY-MM-DD'
 
     const loadAll = useCallback(async (isSilent = false) => {
         if (!isSilent) setLoading(true);
@@ -129,11 +132,25 @@ export default function PulseDashboard() {
 
     const myEmail = String(user?.email || '').toLowerCase();
     const runs = ritusData.runs || [];
+    const todayStr = getTodayIstanbulDateStr();
+    const currentWeekMonday = ritusData.currentWeekStart || ritusData.weekStart;
+    const weekDays = getWeekDaysList(currentWeekMonday);
 
     // Role-focused queues
-    const myRitusRuns = runs.filter(
+    const allMyPendingRuns = runs.filter(
         r => String(r.effectiveAssignee || '').toLowerCase() === myEmail && r.status !== 'done'
     );
+    const todayRuns = allMyPendingRuns.filter(r => r.scheduledDate === todayStr);
+    const pastMissedRuns = allMyPendingRuns.filter(r => r.scheduledDate < todayStr);
+
+    let myRitusRuns = todayRuns;
+    if (dayFilter === 'ALL') {
+        myRitusRuns = allMyPendingRuns;
+    } else if (dayFilter === 'past') {
+        myRitusRuns = pastMissedRuns;
+    } else if (dayFilter !== 'today') {
+        myRitusRuns = allMyPendingRuns.filter(r => r.scheduledDate === dayFilter);
+    }
     const mySequaTasks = sequaTasks.filter(
         t => String(t.assignedTo || '').toLowerCase() === myEmail && t.status !== 'done'
     );
@@ -612,12 +629,18 @@ export default function PulseDashboard() {
                             </span>
                             <div>
                                 <h2 className="text-sm font-extrabold text-slate-900">
-                                    {isCaretaker
-                                        ? `Rutin Görevlerim (${myRitusRuns.length})`
-                                        : `Ritus — Rutin Görevlerim (${myRitusRuns.length})`}
+                                    {dayFilter === 'today'
+                                        ? `Bugünün Rutin Görevleri (${myRitusRuns.length})`
+                                        : dayFilter === 'ALL'
+                                          ? `Tüm Haftalık Rutinlerim (${myRitusRuns.length})`
+                                          : dayFilter === 'past'
+                                            ? `Geçmişten Kalan Rutinler (${myRitusRuns.length})`
+                                            : `Rutin Görevlerim (${myRitusRuns.length})`}
                                 </h2>
                                 <p className="text-[11px] text-slate-500">
-                                    Üzerinize atanan veya yedek olarak devraldığınız periyodik işler
+                                    {dayFilter === 'today'
+                                        ? 'Bugün tamamlamanız gereken periyodik kontroller'
+                                        : 'Üzerinize atanan veya yedek olarak devraldığınız periyodik işler'}
                                 </p>
                             </div>
                         </div>
@@ -631,10 +654,87 @@ export default function PulseDashboard() {
                         )}
                     </div>
 
+                    {/* Day Filter Bar */}
+                    <div className="p-3 border-b border-slate-100 bg-slate-50/70">
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => setDayFilter('today')}
+                                className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
+                                    dayFilter === 'today'
+                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                }`}
+                            >
+                                🌟 Bugün ({todayRuns.length})
+                            </button>
+                            {weekDays.map(d => {
+                                const count = allMyPendingRuns.filter(r => r.scheduledDate === d.dateStr).length;
+                                const isToday = d.dateStr === todayStr;
+                                const isActive = dayFilter === d.dateStr;
+                                return (
+                                    <button
+                                        key={d.dateStr}
+                                        type="button"
+                                        onClick={() => setDayFilter(d.dateStr)}
+                                        className={`px-2.5 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                                            isActive
+                                                ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                                                : isToday
+                                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold'
+                                                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <span>{d.short} {d.dayNumber}</span>
+                                        <span
+                                            className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                                isActive
+                                                    ? 'bg-white/20 text-white'
+                                                    : count > 0
+                                                      ? 'bg-slate-200 text-slate-800'
+                                                      : 'text-slate-400'
+                                            }`}
+                                        >
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                            <button
+                                type="button"
+                                onClick={() => setDayFilter('ALL')}
+                                className={`px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                                    dayFilter === 'ALL'
+                                        ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                }`}
+                            >
+                                Tüm Hafta ({allMyPendingRuns.length})
+                            </button>
+                            {pastMissedRuns.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setDayFilter('past')}
+                                    className={`px-2.5 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                                        dayFilter === 'past'
+                                            ? 'bg-rose-600 text-white shadow-xs'
+                                            : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                                    }`}
+                                >
+                                    ⚠️ Geçmiş ({pastMissedRuns.length})
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="p-4 space-y-3 flex-1">
                         {myRitusRuns.length === 0 ? (
                             <div className="py-10 text-center text-xs text-slate-400">
-                                Bu hafta için bekleyen rutin göreviniz bulunmuyor.
+                                {dayFilter === 'today'
+                                    ? 'Bugün için bekleyen rutin göreviniz bulunmuyor. Farklı bir gün seçebilir veya Tüm Hafta sekmesine bakabilirsiniz.'
+                                    : dayFilter === 'past'
+                                      ? 'Geçmişten kalan veya kaçırılan rutin görev bulunmuyor.'
+                                      : 'Seçilen gün için bekleyen rutin göreviniz bulunmuyor.'}
                             </div>
                         ) : (
                             myRitusRuns.map(run => {
@@ -658,6 +758,26 @@ export default function PulseDashboard() {
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${cat.color}`}>
                                                     {cat.label}
                                                 </span>
+                                                {run.status === 'pending_review' && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                                        ⏳ Denetim Bekliyor
+                                                    </span>
+                                                )}
+                                                {run.autoSubmittedAtDayEnd && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
+                                                        ⏰ Gün Sonu İletildi
+                                                    </span>
+                                                )}
+                                                {run.status === 'needs_revision' && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white animate-pulse">
+                                                        🔄 Tekrar İsteniyor
+                                                    </span>
+                                                )}
+                                                {run.status === 'in_progress' && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                                                        ⚡ Devam Ediyor
+                                                    </span>
+                                                )}
                                             </div>
                                             <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
                                                 <Clock size={12} className="text-indigo-600" />
@@ -668,6 +788,30 @@ export default function PulseDashboard() {
                                         <div className="text-sm font-bold text-slate-900">{run.title}</div>
                                         {run.description && (
                                             <p className="text-xs text-slate-600">{run.description}</p>
+                                        )}
+
+                                        {run.status === 'needs_revision' && run.lastRevisionNote && (
+                                            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
+                                                <div className="font-bold flex items-center gap-1.5 text-rose-800">
+                                                    <RotateCcw size={13} />
+                                                    Denetçi Tekrar / Revizyon Notu:
+                                                </div>
+                                                <p className="text-rose-800 bg-white/80 p-2 rounded-lg border border-rose-200">
+                                                    {run.lastRevisionNote}
+                                                </p>
+                                                {run.rescheduledFrom && (
+                                                    <div className="text-[11px] font-semibold text-rose-800 pt-0.5">
+                                                        📅 Yeni Planlanan Zaman: <strong>{run.scheduledDate} • {run.scheduledTime}</strong> (Eski: {run.rescheduledFrom.scheduledDate} • {run.rescheduledFrom.scheduledTime})
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {run.autoSubmittedAtDayEnd && run.status === 'pending_review' && (
+                                            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+                                                <Clock size={14} className="text-amber-600 shrink-0" />
+                                                <span>Gününde tamamlanmadığı için gün sonunda otomatik olarak denetçiye sevk edildi. Onay veya tekrarlatma bekleniyor.</span>
+                                            </div>
                                         )}
 
                                         {/* Interactive Checklist directly on Pulsus Dashboard */}
@@ -771,6 +915,13 @@ export default function PulseDashboard() {
                                                         <CheckCircle2 size={13} />
                                                         Kontrole Gönder
                                                     </button>
+                                                )}
+
+                                                {run.status === 'pending_review' && (
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-semibold text-xs">
+                                                        <Clock size={13} className="text-amber-600" />
+                                                        Denetçi Onayı Bekleniyor
+                                                    </span>
                                                 )}
                                             </div>
                                         </div>

@@ -208,6 +208,37 @@ export function addDaysStr(dateStr, days) {
     return d.toISOString().slice(0, 10);
 }
 
+export function getTodayIstanbulDateStr(ref = new Date()) {
+    try {
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Europe/Istanbul',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        return formatter.format(ref);
+    } catch {
+        return new Date().toISOString().slice(0, 10);
+    }
+}
+
+export function getWeekDaysList(mondayStr) {
+    if (!mondayStr || !/^\d{4}-\d{2}-\d{2}/.test(mondayStr)) return [];
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const dateStr = addDaysStr(mondayStr, i);
+        const dayInfo = DAYS_OF_WEEK[i] || { name: '', short: '' };
+        days.push({
+            dateStr,
+            dayIndex: i + 1,
+            name: dayInfo.name,
+            short: dayInfo.short,
+            dayNumber: Number(dateStr.slice(8, 10))
+        });
+    }
+    return days;
+}
+
 export function formatTemplateScheduleSummary(template) {
     if (!template) return '';
     const freq = template.frequency || 'weekly';
