@@ -20,18 +20,21 @@ import {
     DEFAULT_STAFF_DIRECTORY,
     SEQUA_PRIORITIES,
     SEQUA_TASK_TYPES,
-    getMemberName
+    getMemberName,
+    VET_EMAIL
 } from '../utils/pulsusHelpers';
 import { CreateSequaModal, ConvertIssueModal } from '../components/TaskModals';
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function SequaBoard() {
     const { user, isVet, isTechnician, isCaretaker } = useAuth();
+    const userEmail = (user?.email || '').trim().toLowerCase();
     const [tasks, setTasks] = useState([]);
     const [members, setMembers] = useState(DEFAULT_STAFF_DIRECTORY);
     const [loading, setLoading] = useState(true);
 
-    // Filters
+    // Filters: non-vet staff default to 'mine' (person-specific queue)
+    const [filterScope, setFilterScope] = useState(isVet ? 'all' : 'mine');
     const [filterType, setFilterType] = useState('ALL');
     const [filterAssignee, setFilterAssignee] = useState('ALL');
 
@@ -115,7 +118,61 @@ export default function SequaBoard() {
         });
     };
 
+    const myTasksCount = tasks.filter(t => {
+        const isTaskForVet =
+            t.taskType === 'vet_request' ||
+            String(t.assignedTo || '').toLowerCase() === VET_EMAIL.toLowerCase();
+
+        if (isVet) {
+            return (
+                String(t.assignedTo || '').toLowerCase() === userEmail ||
+                String(t.reviewerEmail || '').toLowerCase() === userEmail ||
+                isTaskForVet ||
+                t.status === 'reported'
+            );
+        }
+        if (isTaskForVet) return false;
+        const isAssigned = String(t.assignedTo || '').toLowerCase() === userEmail;
+        const isReviewer = String(t.reviewerEmail || '').toLowerCase() === userEmail;
+        const isTechReported =
+            isTechnician &&
+            t.status === 'reported' &&
+            (!t.assignedTo || String(t.assignedTo).toLowerCase() === userEmail);
+        return isAssigned || isReviewer || isTechReported;
+    }).length;
+
+    const vetTasksCount = tasks.filter(
+        t =>
+            t.taskType === 'vet_request' ||
+            String(t.assignedTo || '').toLowerCase() === VET_EMAIL.toLowerCase()
+    ).length;
+
     const filteredTasks = tasks.filter(t => {
+        const isTaskForVet =
+            t.taskType === 'vet_request' ||
+            String(t.assignedTo || '').toLowerCase() === VET_EMAIL.toLowerCase();
+
+        if (filterScope === 'mine') {
+            if (isVet) {
+                const isAssigned = String(t.assignedTo || '').toLowerCase() === userEmail;
+                const isReviewer = String(t.reviewerEmail || '').toLowerCase() === userEmail;
+                if (!isAssigned && !isReviewer && !isTaskForVet && t.status !== 'reported') {
+                    return false;
+                }
+            } else {
+                if (isTaskForVet) return false;
+                const isAssigned = String(t.assignedTo || '').toLowerCase() === userEmail;
+                const isReviewer = String(t.reviewerEmail || '').toLowerCase() === userEmail;
+                const isTechReported =
+                    isTechnician &&
+                    t.status === 'reported' &&
+                    (!t.assignedTo || String(t.assignedTo).toLowerCase() === userEmail);
+                if (!isAssigned && !isReviewer && !isTechReported) return false;
+            }
+        } else if (filterScope === 'vet_requests') {
+            if (!isTaskForVet) return false;
+        }
+
         if (filterType !== 'ALL' && t.taskType !== filterType) return false;
         if (
             filterAssignee !== 'ALL' &&
@@ -232,44 +289,113 @@ export default function SequaBoard() {
             </div>
 
             {/* Filter Bar */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {[
-                        { key: 'ALL', label: 'Tümü' },
-                        { key: 'task', label: '📋 Personel Görevleri' },
-                        { key: 'vet_request', label: '🩺 Hekim Muayene Talepleri' },
-                        { key: 'issue_report', label: '⚠️ Problem Bildirimleri' },
-                        { key: 'external', label: '🏛️ Üniversite / Dış Birim' }
-                    ].map(tab => (
-                        <button
-                            key={tab.key}
-                            type="button"
-                            onClick={() => setFilterType(tab.key)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                                filterType === tab.key
-                                    ? 'bg-slate-900 text-white border-slate-900'
-                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                {/* Scope Selection Tabs */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+                    <button
+                        type="button"
+                        onClick={() => setFilterScope('mine')}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            filterScope === 'mine'
+                                ? 'bg-rose-600 text-white shadow-xs'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                    >
+                        <span>📌 Bana Atanan Görevler</span>
+                        <span
+                            className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                                filterScope === 'mine'
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-200 text-slate-700'
                             }`}
                         >
-                            {tab.label}
-                        </button>
-                    ))}
+                            {myTasksCount}
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setFilterScope('all')}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            filterScope === 'all'
+                                ? 'bg-slate-900 text-white shadow-xs'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                    >
+                        <span>🌐 Tüm Laboratuvar Panosu</span>
+                        <span
+                            className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                                filterScope === 'all'
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-200 text-slate-700'
+                            }`}
+                        >
+                            {tasks.length}
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setFilterScope('vet_requests')}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            filterScope === 'vet_requests'
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                    >
+                        <span>🩺 Hekim Muayene &amp; Sevkler</span>
+                        <span
+                            className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                                filterScope === 'vet_requests'
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-200 text-slate-700'
+                            }`}
+                        >
+                            {vetTasksCount}
+                        </span>
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <SlidersHorizontal size={14} className="text-slate-400" />
-                    <select
-                        value={filterAssignee}
-                        onChange={e => setFilterAssignee(e.target.value)}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
-                    >
-                        <option value="ALL">Tüm Sorumlular</option>
-                        {members.map(m => (
-                            <option key={m.email} value={m.email}>
-                                {m.name}
-                            </option>
+                {/* Sub-Filters: Type and Assignee */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {[
+                            { key: 'ALL', label: 'Tümü' },
+                            { key: 'task', label: '📋 Personel Görevleri' },
+                            { key: 'vet_request', label: '🩺 Hekim Muayene Talepleri' },
+                            { key: 'issue_report', label: '⚠️ Problem Bildirimleri' },
+                            { key: 'external', label: '🏛️ Üniversite / Dış Birim' }
+                        ].map(tab => (
+                            <button
+                                key={tab.key}
+                                type="button"
+                                onClick={() => setFilterType(tab.key)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                                    filterType === tab.key
+                                        ? 'bg-slate-900 text-white border-slate-900'
+                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
                         ))}
-                    </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <SlidersHorizontal size={14} className="text-slate-400" />
+                        <select
+                            value={filterAssignee}
+                            onChange={e => setFilterAssignee(e.target.value)}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
+                        >
+                            <option value="ALL">Tüm Sorumlular</option>
+                            {members.map(m => (
+                                <option key={m.email} value={m.email}>
+                                    {m.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -307,6 +433,39 @@ export default function SequaBoard() {
                                         const tType =
                                             SEQUA_TASK_TYPES[task.taskType] ||
                                             SEQUA_TASK_TYPES.task;
+
+                                        const isTaskForVet =
+                                            task.taskType === 'vet_request' ||
+                                            String(task.assignedTo || '').toLowerCase() ===
+                                                VET_EMAIL.toLowerCase();
+
+                                        const isAssigned =
+                                            String(task.assignedTo || '').toLowerCase() ===
+                                            userEmail;
+                                        const isReviewer =
+                                            String(task.reviewerEmail || '').toLowerCase() ===
+                                            userEmail;
+
+                                        const canStart = !isTaskForVet
+                                            ? isAssigned || isVet
+                                            : isVet;
+                                        const canSendReview = !isTaskForVet
+                                            ? isAssigned || isVet
+                                            : isVet;
+                                        const canApprove = isTaskForVet
+                                            ? isVet
+                                            : isReviewer || isVet;
+                                        const canEdit =
+                                            isVet ||
+                                            (!isTaskForVet &&
+                                                (isTechnician ||
+                                                    String(task.createdBy || '').toLowerCase() ===
+                                                        userEmail));
+                                        const canDelete =
+                                            isVet ||
+                                            (!isTaskForVet &&
+                                                String(task.createdBy || '').toLowerCase() ===
+                                                    userEmail);
 
                                         return (
                                             <div
@@ -383,113 +542,154 @@ export default function SequaBoard() {
                                                 </div>
 
                                                 {/* Action Buttons */}
-                                                {(task.status !== 'done' || isVet || isTechnician) && (
-                                                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                                                        {task.status === 'reported' &&
-                                                            !isCaretaker && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        setConvertModal({
-                                                                            open: true,
-                                                                            task
-                                                                        })
-                                                                    }
-                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
-                                                                >
-                                                                    Göreve Dönüştür &amp; Ata
-                                                                </button>
-                                                            )}
-
-                                                        {task.status === 'todo' && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    handlePatchTask(
-                                                                        task._id,
-                                                                        'move_status',
-                                                                        { status: 'in_progress' }
-                                                                    )
-                                                                }
-                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
-                                                            >
-                                                                Başlat
-                                                            </button>
-                                                        )}
-
-                                                        {task.status === 'in_progress' && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    handlePatchTask(
-                                                                        task._id,
-                                                                        'move_status',
-                                                                        { status: 'review' }
-                                                                    )
-                                                                }
-                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
-                                                            >
-                                                                Kontrole Gönder
-                                                            </button>
-                                                        )}
-
-                                                        {(task.status === 'review' || (isVet && task.status !== 'done')) &&
-                                                            !isCaretaker && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        handlePatchTask(
-                                                                            task._id,
-                                                                            'approve'
-                                                                        )
-                                                                    }
-                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5"
-                                                                >
-                                                                    <CheckCircle2 size={13} />
-                                                                    Onayla &amp; Kapat
-                                                                </button>
-                                                            )}
-
-                                                        {(isVet ||
-                                                            isTechnician ||
-                                                            String(
-                                                                task.createdBy || ''
-                                                            ).toLowerCase() ===
-                                                                String(
-                                                                    user?.email || ''
-                                                                ).toLowerCase()) && (
-                                                            <div className="flex items-center gap-2 ml-auto">
-                                                                {(task.status === 'todo' ||
-                                                                    task.status === 'reported' ||
-                                                                    isVet) && (
+                                                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                                                    {isTaskForVet && !isVet ? (
+                                                        <div className="px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-semibold flex items-center gap-1.5 w-full">
+                                                            <Stethoscope
+                                                                size={13}
+                                                                className="text-rose-600 shrink-0"
+                                                            />
+                                                            <span>
+                                                                Sorumlu Veteriner Hekim İncelemesinde (Yetkili: Vet. Hekim)
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            {task.status === 'reported' &&
+                                                                !isCaretaker && (
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => {
-                                                                            setEditingTask(task);
-                                                                            setCreateModalOpen(true);
-                                                                        }}
-                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold"
-                                                                        title="Görevi düzenle"
+                                                                        onClick={() =>
+                                                                            setConvertModal({
+                                                                                open: true,
+                                                                                task
+                                                                            })
+                                                                        }
+                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
                                                                     >
-                                                                        <Edit3 size={13} />
-                                                                        Düzenle
+                                                                        Göreve Dönüştür &amp; Ata
                                                                     </button>
                                                                 )}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        handleDeleteTask(task._id)
-                                                                    }
-                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold"
-                                                                    title="Görevi sil"
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                    Sil
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
+
+                                                            {task.status === 'todo' &&
+                                                                canStart && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handlePatchTask(
+                                                                                task._id,
+                                                                                'move_status',
+                                                                                {
+                                                                                    status: 'in_progress'
+                                                                                }
+                                                                            )
+                                                                        }
+                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
+                                                                    >
+                                                                        Başlat
+                                                                    </button>
+                                                                )}
+
+                                                            {task.status === 'in_progress' &&
+                                                                canSendReview && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handlePatchTask(
+                                                                                task._id,
+                                                                                'move_status',
+                                                                                {
+                                                                                    status: 'review'
+                                                                                }
+                                                                            )
+                                                                        }
+                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
+                                                                    >
+                                                                        Kontrole Gönder
+                                                                    </button>
+                                                                )}
+
+                                                            {task.status === 'review' &&
+                                                                canApprove &&
+                                                                !isCaretaker && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handlePatchTask(
+                                                                                task._id,
+                                                                                'approve'
+                                                                            )
+                                                                        }
+                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5"
+                                                                    >
+                                                                        <CheckCircle2 size={13} />
+                                                                        Onayla &amp; Kapat
+                                                                    </button>
+                                                                )}
+
+                                                            {isVet &&
+                                                                task.status !== 'done' &&
+                                                                task.status !== 'review' && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handlePatchTask(
+                                                                                task._id,
+                                                                                'approve'
+                                                                            )
+                                                                        }
+                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5"
+                                                                        title="Veteriner Hekim Doğrudan Kapatma Yetkisi"
+                                                                    >
+                                                                        <CheckCircle2 size={13} />
+                                                                        Hekim Onayıyla Kapat
+                                                                    </button>
+                                                                )}
+
+                                                            {(canEdit || canDelete) && (
+                                                                <div className="flex items-center gap-2 ml-auto">
+                                                                    {canEdit &&
+                                                                        (task.status === 'todo' ||
+                                                                            task.status ===
+                                                                                'reported' ||
+                                                                            isVet) && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setEditingTask(
+                                                                                        task
+                                                                                    );
+                                                                                    setCreateModalOpen(
+                                                                                        true
+                                                                                    );
+                                                                                }}
+                                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold"
+                                                                                title="Görevi düzenle"
+                                                                            >
+                                                                                <Edit3 size={13} />
+                                                                                Düzenle
+                                                                            </button>
+                                                                        )}
+                                                                    {canDelete && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                handleDeleteTask(
+                                                                                    task._id
+                                                                                )
+                                                                            }
+                                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold"
+                                                                            title="Görevi sil"
+                                                                        >
+                                                                            <Trash2 size={13} />
+                                                                            Sil
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })

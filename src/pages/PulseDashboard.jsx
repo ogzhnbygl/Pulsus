@@ -32,7 +32,8 @@ import {
     formatScheduledBadge,
     getMemberName,
     getTodayIstanbulDateStr,
-    getWeekDaysList
+    getWeekDaysList,
+    VET_EMAIL
 } from '../utils/pulsusHelpers';
 import {
     CreateSequaModal,
@@ -159,7 +160,11 @@ export default function PulseDashboard() {
     const vetFallbackRuns = runs.filter(r => r.vetFallback && r.status !== 'done');
     const escalatedRuns = runs.filter(r => r.status === 'escalated');
     const vetRequests = sequaTasks.filter(
-        t => (t.taskType === 'vet_request' || t.taskType === 'issue_report') && t.status !== 'done'
+        t =>
+            (t.taskType === 'vet_request' ||
+                t.taskType === 'issue_report' ||
+                String(t.assignedTo || '').toLowerCase() === VET_EMAIL.toLowerCase()) &&
+            t.status !== 'done'
     );
 
     // Reviewer (Technician & Vet) pending review queue
@@ -1082,7 +1087,30 @@ export default function PulseDashboard() {
                                                         Kontrole Gönder
                                                     </button>
                                                 )}
-                                                {(task.status === 'review' || isVet) && (
+                                                {task.status === 'review' && (
+                                                    (isVet ||
+                                                        (String(task.reviewerEmail || '').toLowerCase() === myEmail &&
+                                                            task.taskType !== 'vet_request' &&
+                                                            String(task.assignedTo || '').toLowerCase() !== VET_EMAIL.toLowerCase())) ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleSequaQuickAction(
+                                                                    task._id,
+                                                                    'approve'
+                                                                )
+                                                            }
+                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                                        >
+                                                            ✓ Onayla &amp; Kapat
+                                                        </button>
+                                                    ) : (
+                                                        <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold">
+                                                            🔍 Denetçi Onayı Bekliyor
+                                                        </span>
+                                                    )
+                                                )}
+                                                {isVet && task.status !== 'review' && task.status !== 'done' && (
                                                     <button
                                                         type="button"
                                                         onClick={() =>
@@ -1093,7 +1121,7 @@ export default function PulseDashboard() {
                                                         }
                                                         className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
                                                     >
-                                                        ✓ Tamamla
+                                                        ✓ Hekim Onayıyla Kapat
                                                     </button>
                                                 )}
                                             </div>

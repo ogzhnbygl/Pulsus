@@ -178,6 +178,25 @@ export default async function handler(req, res) {
     const sequaCol = db.collection('sequa_tasks');
     const membersCol = db.collection('members');
 
+    // Self-heal: ensure tasks assigned to Sorumlu Veteriner Hekim have taskType: 'vet_request' and reviewer: Vet
+    try {
+        await sequaCol.updateMany(
+            {
+                assignedTo: VET_EMAIL.toLowerCase(),
+                taskType: 'task'
+            },
+            {
+                $set: {
+                    taskType: 'vet_request',
+                    assignedToRole: 'vet',
+                    reviewerEmail: VET_EMAIL.toLowerCase()
+                }
+            }
+        );
+    } catch {
+        // Silently skip if query fails during cold boot
+    }
+
     if (req.method === 'GET') {
         try {
             const filter = {};
@@ -395,16 +414,20 @@ export default async function handler(req, res) {
                     });
                 }
 
-                const newTaskType = data.taskType || (data.externalUnit ? 'external' : 'task');
                 const newAssignee = data.assignedTo
                     ? data.assignedTo.trim().toLowerCase()
                     : existing.assignedTo;
+                const isTargetVet = newAssignee === VET_EMAIL.toLowerCase();
+                const newTaskType = isTargetVet
+                    ? 'vet_request'
+                    : (data.taskType || (data.externalUnit ? 'external' : 'task'));
 
                 const updatePayload = {
                     taskType: newTaskType,
                     status: data.status || 'todo',
                     assignedTo: newAssignee,
-                    reviewerEmail: userEmail,
+                    assignedToRole: isTargetVet ? 'vet' : (newTaskType === 'external' ? 'external' : 'technician'),
+                    reviewerEmail: isTargetVet ? VET_EMAIL.toLowerCase() : userEmail,
                     externalUnit:
                         newTaskType === 'external'
                             ? (data.externalUnit || existing.externalUnit || 'Üniversite Teknik Birimi')
@@ -482,9 +505,13 @@ export default async function handler(req, res) {
                     });
                 }
 
-                if (existing.taskType === 'vet_request' && userRole !== 'vet' && user.role !== 'admin') {
+                const isTaskForVet =
+                    existing.taskType === 'vet_request' ||
+                    existing.assignedTo?.toLowerCase() === VET_EMAIL.toLowerCase();
+
+                if (isTaskForVet && userRole !== 'vet' && user.role !== 'admin') {
                     return res.status(403).json({
-                        error: 'Veteriner hekim muayene ve klinik karar talepleri yalnızca Sorumlu Veteriner Hekim tarafından onaylanıp kapatılabilir.'
+                        error: 'Veteriner hekime ait görevler ve klinik karar talepleri yalnızca Sorumlu Veteriner Hekim tarafından onaylanıp kapatılabilir.'
                     });
                 }
 
@@ -681,8 +708,48 @@ export default async function handler(req, res) {
             const isAssigned = existing.assignedTo?.toLowerCase() === userEmail;
             const isReviewer = existing.reviewerEmail?.toLowerCase() === userEmail;
             const isCreator = existing.createdBy?.toLowerCase() === userEmail;
+            const isTaskAssignedToVet =
+                existing.taskType === 'vet_request' ||
+                existing.assignedTo?.toLowerCase() === VET_EMAIL.toLowerCase();
 
-            const isAuthorized = isVet || isTech || isAssigned || isReviewer || isCreator;
+            // 1. Task assigned to Vet / Vet Request: Technicians have NO mutation rights!
+            if (isTaskAssignedToVet && !isVet) {
+                return res.status(403).json({
+                    error: 'Veteriner Hekime atanmış olan görevler ve hekim klinik karar talepleri yalnızca Sorumlu Veteriner Hekim tarafından yürütülebilir ve güncellenebilir.'
+                });
+            }
+
+            // 2. Specific status transition checks for tasks
+            if (data.status === 'in_progress') {
+                if (!isAssigned && !isVet) {
+                    return res.status(403).json({
+                        error: 'Yalnızca göreve atanmış sorumlu personel veya Veteriner Hekim bu görevi işleme alabilir (başlatabilir).'
+                    });
+                }
+            }
+
+            if (data.status === 'review') {
+                if (!isAssigned && !isVet) {
+                    return res.status(403).json({
+                        error: 'Yalnızca görevi yürüten personel veya Veteriner Hekim görevi kontrole gönderebilir.'
+                    });
+                }
+            }
+
+            if (data.status === 'done') {
+                if (userRole === 'caretaker') {
+                    return res.status(403).json({
+                        error: 'Bakıcı/Temizlik personeli görevi doğrudan tamamlandı (Onay) durumuna alamaz.'
+                    });
+                }
+                if (!isReviewer && !isVet) {
+                    return res.status(403).json({
+                        error: 'Yalnızca Denetçi veya Sorumlu Veteriner Hekim görevi onaylayıp kapatabilir.'
+                    });
+                }
+            }
+
+            const isAuthorized = isVet || isAssigned || isReviewer || isCreator;
             if (!isAuthorized) {
                 return res.status(403).json({
                     error: 'Bu görevin durumunu veya detaylarını güncelleme yetkiniz bulunmamaktadır.'

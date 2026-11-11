@@ -823,10 +823,10 @@ export function ConvertIssueModal({
     onSubmit
 }) {
     const staffList = members.length > 0 ? members : DEFAULT_STAFF_DIRECTORY;
-    const [targetType, setTargetType] = useState('task');
-    const [assignedTo, setAssignedTo] = useState(
-        task?.assignedTo || staffList[1]?.email || VET_EMAIL
-    );
+    const initialAssignee = task?.assignedTo || staffList[1]?.email || VET_EMAIL;
+    const isInitialVet = initialAssignee.toLowerCase() === VET_EMAIL.toLowerCase();
+    const [targetType, setTargetType] = useState(isInitialVet ? 'vet_request' : 'task');
+    const [assignedTo, setAssignedTo] = useState(initialAssignee);
     const [priority, setPriority] = useState(task?.priority || 'high');
     const [externalUnit, setExternalUnit] = useState(UNIVERSITY_EXTERNAL_UNITS[0]);
     const [externalTicketNo, setExternalTicketNo] = useState('');
@@ -835,6 +835,25 @@ export function ConvertIssueModal({
     const [error, setError] = useState('');
 
     if (!isOpen || !task) return null;
+
+    const handleAssigneeChange = email => {
+        setAssignedTo(email);
+        if (email.toLowerCase() === VET_EMAIL.toLowerCase()) {
+            setTargetType('vet_request');
+        } else if (targetType === 'vet_request') {
+            setTargetType('task');
+        }
+    };
+
+    const handleTargetTypeChange = type => {
+        setTargetType(type);
+        if (type === 'vet_request') {
+            setAssignedTo(VET_EMAIL);
+        } else if (type === 'task' && assignedTo.toLowerCase() === VET_EMAIL.toLowerCase()) {
+            const firstTech = staffList.find(m => m.pulsusRole === 'technician');
+            setAssignedTo(firstTech?.email || staffList[1]?.email || staffList[0]?.email);
+        }
+    };
 
     const handleFormSubmit = async e => {
         e.preventDefault();
@@ -846,7 +865,7 @@ export function ConvertIssueModal({
                 action: 'convert_to_task',
                 taskType: targetType,
                 status: targetType === 'external' ? 'in_progress' : 'todo',
-                assignedTo,
+                assignedTo: targetType === 'vet_request' ? VET_EMAIL : assignedTo,
                 priority,
                 externalUnit: targetType === 'external' ? externalUnit : null,
                 externalTicketNo:
@@ -856,7 +875,11 @@ export function ConvertIssueModal({
                 note:
                     note.trim() ||
                     `Problem bildirimi ${
-                        targetType === 'external' ? 'Üniversite Dış Birim İşine' : 'Personel Görevine'
+                        targetType === 'external'
+                            ? 'Üniversite Dış Birim İşine'
+                            : targetType === 'vet_request'
+                            ? 'Sorumlu Veteriner Hekim Sevkine'
+                            : 'Personel Görevine'
                     } dönüştürüldü.`
             });
             onClose();
@@ -892,30 +915,47 @@ export function ConvertIssueModal({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <button
                             type="button"
-                            onClick={() => setTargetType('task')}
-                            className={`p-2.5 rounded-xl border text-xs font-bold text-left ${
+                            onClick={() => handleTargetTypeChange('task')}
+                            className={`p-2.5 rounded-xl border text-xs font-bold text-left transition-all ${
                                 targetType === 'task'
-                                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900'
-                                    : 'border-slate-200 text-slate-600'
+                                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-200'
+                                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                             }`}
                         >
-                            📋 İç Personel Görevine Dönüştür
+                            📋 İç Personel Görevi
                         </button>
                         <button
                             type="button"
-                            onClick={() => setTargetType('external')}
-                            className={`p-2.5 rounded-xl border text-xs font-bold text-left ${
-                                targetType === 'external'
-                                    ? 'bg-purple-50 border-purple-500 text-purple-900'
-                                    : 'border-slate-200 text-slate-600'
+                            onClick={() => handleTargetTypeChange('vet_request')}
+                            className={`p-2.5 rounded-xl border text-xs font-bold text-left transition-all ${
+                                targetType === 'vet_request'
+                                    ? 'bg-rose-50 border-rose-500 text-rose-900 ring-2 ring-rose-200'
+                                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                             }`}
                         >
-                            🏛️ Üniversite / Dış Birime Sevk Et
+                            🩺 Hekime Sevk Et
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleTargetTypeChange('external')}
+                            className={`p-2.5 rounded-xl border text-xs font-bold text-left transition-all ${
+                                targetType === 'external'
+                                    ? 'bg-purple-50 border-purple-500 text-purple-900 ring-2 ring-purple-200'
+                                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                        >
+                            🏛️ Dış Birime Sevk
                         </button>
                     </div>
+
+                    {targetType === 'vet_request' && (
+                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-[11px] text-rose-900">
+                            🩺 <strong>Sorumlu Veteriner Hekim Sevk Modu:</strong> Görev doğrudan Hekime atanacak ve klinik karar yetki zincirine bağlanacaktır. Bu görev yalnızca Hekim tarafından başlatılabilir ve sonuçlandırılabilir.
+                        </div>
+                    )}
 
                     {targetType === 'external' && (
                         <div className="space-y-2 p-3 rounded-xl bg-purple-50 border border-purple-200">
@@ -950,7 +990,7 @@ export function ConvertIssueModal({
                             </label>
                             <select
                                 value={assignedTo}
-                                onChange={e => setAssignedTo(e.target.value)}
+                                onChange={e => handleAssigneeChange(e.target.value)}
                                 className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
                             >
                                 {staffList.map(m => (
