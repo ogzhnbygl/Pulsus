@@ -6,7 +6,9 @@ import {
     isFridayDistributionTimeReached,
     distributeWeekPackage,
     syncPendingRunsWithCircaLeaves,
-    autoSubmitEndOfDayMissedRuns
+    autoSubmitEndOfDayMissedRuns,
+    getTodayIstanbulDateStr,
+    deduplicateRescheduledClones
 } from '../../lib/ritusEngine.js';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
@@ -25,6 +27,8 @@ const patchRunSchema = z.object({
     id: z.string().min(1, 'Görev (Run) ID gereklidir.'),
     action: z.enum([
         'start',
+        'revert_to_todo',
+        'toggle_off_day_permission',
         'toggle_checklist',
         'submit_for_review',
         'approve',
@@ -33,6 +37,7 @@ const patchRunSchema = z.object({
         'vet_reassign'
     ]),
     note: z.string().max(1000).optional().default(''),
+    offDayStartAllowed: z.boolean().optional(),
     checklistItemId: z.number().int().min(0).optional(),
     checklist: z
         .array(
@@ -105,6 +110,9 @@ export default async function handler(req, res) {
                     nextWeekAutoDistributed = true;
                 }
             }
+
+            // Deduplicate any accidental clones from rescheduled revisions
+            await deduplicateRescheduledClones(db, requestedWeek);
 
             // Re-sync unstarted ('todo') runs with latest Circa approved leaves
             await syncPendingRunsWithCircaLeaves(client, db, requestedWeek);
@@ -260,6 +268,15 @@ export default async function handler(req, res) {
                         error: `'${run.status}' durumundaki bir görev başlatılamaz.`
                     });
                 }
+
+                // Item 6: Off-day / future-day task start restriction (only allowed if scheduledDate === todayStr OR Vet granted permission OR user is Vet)
+                const todayStr = getTodayIstanbulDateStr();
+                if (run.scheduledDate && run.scheduledDate !== todayStr && !isVet && !run.offDayStartAllowed) {
+                    return res.status(403).json({
+                        error: 'Kendi gününden farklı gündeki bir rutin göreve yalnızca Sorumlu Veteriner Hekim izin verdiğinde başlanabilir.'
+                    });
+                }
+
                 const historyItem = {
                     action: 'start',
                     by: userEmail,
@@ -270,7 +287,12 @@ export default async function handler(req, res) {
                 await runsCol.updateOne(
                     { _id: runObjectId },
                     {
-                        $set: { status: 'in_progress', startedAt: run.startedAt || now, updatedAt: now },
+                        $set: {
+                            status: 'in_progress',
+                            startedAt: run.startedAt || now,
+                            incompleteAtDayEnd: false,
+                            updatedAt: now
+                        },
                         $push: { reviewHistory: historyItem }
                     }
                 );
@@ -278,7 +300,92 @@ export default async function handler(req, res) {
                 return res.status(200).json({ run: updated });
             }
 
-            // 2. TOGGLE_CHECKLIST
+            // 1b. REVERT_TO_TODO (Item 3: Unstart / Release an in-progress task back to todo/needs_revision)
+            if (data.action === 'revert_to_todo') {
+                if (!isEffectiveAssignee && !isVet && !isTech) {
+                    return res.status(403).json({
+                        error: 'Başlanan görevi yalnızca görevi yürüten personel veya Veteriner Hekim geri bırakabilir.'
+                    });
+                }
+                if (run.status !== 'in_progress') {
+                    return res.status(400).json({
+                        error: 'Yalnızca devam eden (başlatılmış) görevler geri bırakılabilir.'
+                    });
+                }
+
+                const targetRevertStatus = run.revisionCount > 0 ? 'needs_revision' : 'todo';
+                const resetChecklist = Array.isArray(run.checklist)
+                    ? run.checklist.map(item => ({
+                          ...item,
+                          done: false,
+                          completedAt: null,
+                          completedBy: null
+                      }))
+                    : [];
+
+                const historyItem = {
+                    action: 'revert_to_todo',
+                    by: userEmail,
+                    byName: user.name,
+                    at: now,
+                    note: data.note || 'Başlanan görev yarıda bırakılarak yapılacaklara geri alındı.'
+                };
+
+                await runsCol.updateOne(
+                    { _id: runObjectId },
+                    {
+                        $set: {
+                            status: targetRevertStatus,
+                            startedAt: null,
+                            checklist: resetChecklist,
+                            updatedAt: now
+                        },
+                        $push: { reviewHistory: historyItem }
+                    }
+                );
+                const updated = await runsCol.findOne({ _id: runObjectId });
+                return res.status(200).json({ run: updated });
+            }
+
+            // 1c. TOGGLE_OFF_DAY_PERMISSION (Item 6: Vet grants/revokes permission to start a task on another day)
+            if (data.action === 'toggle_off_day_permission') {
+                if (!isVet) {
+                    return res.status(403).json({
+                        error: 'Farklı gündeki bir göreve başlama izni yalnızca Sorumlu Veteriner Hekim tarafından verilebilir.'
+                    });
+                }
+                const nextAllowed =
+                    typeof data.offDayStartAllowed === 'boolean'
+                        ? data.offDayStartAllowed
+                        : !run.offDayStartAllowed;
+
+                const historyItem = {
+                    action: 'toggle_off_day_permission',
+                    by: userEmail,
+                    byName: user.name,
+                    at: now,
+                    note: nextAllowed
+                        ? 'Sorumlu Veteriner Hekim tarafından farklı günde başlatma izni verildi.'
+                        : 'Farklı günde başlatma izni kaldırıldı.'
+                };
+
+                await runsCol.updateOne(
+                    { _id: runObjectId },
+                    {
+                        $set: {
+                            offDayStartAllowed: nextAllowed,
+                            offDayAllowedBy: nextAllowed ? userEmail : null,
+                            offDayAllowedAt: nextAllowed ? now : null,
+                            updatedAt: now
+                        },
+                        $push: { reviewHistory: historyItem }
+                    }
+                );
+                const updated = await runsCol.findOne({ _id: runObjectId });
+                return res.status(200).json({ run: updated });
+            }
+
+            // 2. TOGGLE_CHECKLIST (Item 5: Cannot complete checklist items before pressing 'Başlat')
             if (data.action === 'toggle_checklist') {
                 if (!isEffectiveAssignee && !isEffectiveReviewer && !isVet) {
                     return res.status(403).json({
@@ -288,6 +395,16 @@ export default async function handler(req, res) {
                 if (run.status === 'done') {
                     return res.status(400).json({
                         error: 'Tamamlanmış ve onaylanmış görevlerin kontrol listesi değiştirilemez.'
+                    });
+                }
+                if (run.status === 'todo' || run.status === 'needs_revision') {
+                    return res.status(400).json({
+                        error: 'Alt iş paketlerini (kontrol listesini) tamamlamak için önce "Başlat" butonuna basarak görevi başlatmalısınız.'
+                    });
+                }
+                if (run.status !== 'in_progress') {
+                    return res.status(400).json({
+                        error: 'Kontrol listesi yalnızca başlatılmış (devam eden) görevlerde işaretlenebilir.'
                     });
                 }
 
@@ -454,8 +571,15 @@ export default async function handler(req, res) {
                     newScheduledTime: data.newScheduledTime || run.scheduledTime
                 };
 
+                const origDate =
+                    run.originalScheduledDate ||
+                    run.rescheduledFrom?.scheduledDate ||
+                    run.scheduledDate;
+
                 const updateSet = {
                     status: 'needs_revision',
+                    startedAt: null,
+                    originalScheduledDate: origDate,
                     lastRevisionNote: data.note.trim(),
                     lastRevisionBy: userEmail,
                     updatedAt: now
@@ -463,6 +587,7 @@ export default async function handler(req, res) {
 
                 if (data.newScheduledDate) {
                     updateSet.scheduledDate = data.newScheduledDate;
+                    updateSet.weekStart = getMondayOfDate(data.newScheduledDate);
                     updateSet.rescheduledAt = now;
                     updateSet.rescheduledFrom = {
                         scheduledDate: run.scheduledDate,
@@ -487,6 +612,9 @@ export default async function handler(req, res) {
                     updateSet.primaryAssignee = data.newAssigneeEmail.toLowerCase();
                 }
 
+                // Ensure legacy unique index on (templateId, scheduledDate) is dropped before rescheduling
+                await deduplicateRescheduledClones(db, run.weekStart);
+
                 await runsCol.updateOne(
                     { _id: runObjectId },
                     {
@@ -495,6 +623,7 @@ export default async function handler(req, res) {
                         $push: { reviewHistory: historyItem }
                     }
                 );
+                await deduplicateRescheduledClones(db, updateSet.weekStart || run.weekStart);
                 const updated = await runsCol.findOne({ _id: runObjectId });
                 return res.status(200).json({ run: updated });
             }
@@ -547,7 +676,7 @@ export default async function handler(req, res) {
                         createdByRole: user.pulsusRole,
                         assignedTo: VET_EMAIL,
                         assignedToRole: 'vet',
-                        reviewerEmail: VET_EMAIL,
+                        reviewerEmail: userEmail,
                         externalUnit: null,
                         sourceRitusRunId: run._id.toString(),
                         sourceRitusTitle: run.title,

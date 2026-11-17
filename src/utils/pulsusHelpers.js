@@ -173,6 +173,29 @@ export function formatScheduledBadge(dateStr, scheduledTime = '09:00') {
     return `${dayShort} ${d} ${monthShort}${scheduledTime ? ` • ${scheduledTime}` : ''}`;
 }
 
+export function formatSequaDateTimeBadge(dueDate, startTime = null, endTime = null) {
+    const timeRange =
+        startTime && endTime
+            ? `${startTime} - ${endTime}`
+            : startTime
+              ? startTime
+              : endTime
+                ? `Bitiş: ${endTime}`
+                : '';
+
+    if (!dueDate || !/^\d{4}-\d{2}-\d{2}/.test(dueDate)) {
+        return timeRange;
+    }
+    const [y, m, d] = dueDate.slice(0, 10).split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const utcDay = dt.getUTCDay();
+    const dayIndex = utcDay === 0 ? 7 : utcDay;
+    const dayShort = DAYS_OF_WEEK.find(x => x.value === dayIndex)?.short || '';
+    const monthShort = MONTHS_TR.find(x => x.value === m)?.short || '';
+    const datePart = `${dayShort} ${d} ${monthShort}`;
+    return timeRange ? `${datePart} • ${timeRange}` : datePart;
+}
+
 export function formatWeekRangeLabel(mondayStr) {
     if (!mondayStr || !/^\d{4}-\d{2}-\d{2}/.test(mondayStr)) return mondayStr || '';
     const sundayStr = addDaysStr(mondayStr, 6);

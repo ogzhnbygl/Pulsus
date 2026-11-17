@@ -8,16 +8,25 @@ import {
     RotateCcw,
     Send,
     Link2,
-    UserCheck
+    UserCheck,
+    CheckCircle2,
+    Clock,
+    CheckSquare,
+    Trash2
 } from 'lucide-react';
 import {
     VET_EMAIL,
     SEQUA_PRIORITIES,
+    SEQUA_TASK_TYPES,
+    RITUS_CATEGORIES,
+    RITUS_FREQUENCIES,
     UNIVERSITY_EXTERNAL_UNITS,
     DEFAULT_STAFF_DIRECTORY,
     getMemberName,
     getTodayIstanbulDateStr,
-    addDaysStr
+    addDaysStr,
+    formatScheduledBadge,
+    formatSequaDateTimeBadge
 } from '../utils/pulsusHelpers';
 
 /**
@@ -39,10 +48,11 @@ export function CreateSequaModal({
     const isTechnician = userRole === 'technician';
     const isCaretaker = !isVet && !isTechnician;
 
+    // Item 10: Non-caretaker staff (Technician / Vet) default to 'task' even when opening from a Ritus run
     const defaultType =
         initialTask?.taskType ||
         initialTaskType ||
-        (isCaretaker ? 'issue_report' : sourceRitusRun ? 'issue_report' : 'task');
+        (isCaretaker ? 'issue_report' : 'task');
 
     const staffList = members.length > 0 ? members : DEFAULT_STAFF_DIRECTORY;
     const supervisorsOnly = staffList.filter(
@@ -72,6 +82,8 @@ export function CreateSequaModal({
     );
     const [externalTicketNo, setExternalTicketNo] = useState(initialTask?.externalTicketNo || '');
     const [dueDate, setDueDate] = useState(initialTask?.dueDate || '');
+    const [startTime, setStartTime] = useState(initialTask?.startTime || '');
+    const [endTime, setEndTime] = useState(initialTask?.endTime || '');
     const [contextLabel, setContextLabel] = useState(
         initialTask?.contextRef?.label || sourceRitusRun?.contextRef?.label || ''
     );
@@ -101,6 +113,10 @@ export function CreateSequaModal({
             setError('Lütfen en az 2 karakterli bir başlık giriniz.');
             return;
         }
+        if (startTime && endTime && endTime < startTime) {
+            setError('Bitiş saati başlangıç saatinden önce olamaz.');
+            return;
+        }
 
         setSubmitting(true);
         try {
@@ -117,6 +133,8 @@ export function CreateSequaModal({
                         ? externalTicketNo.trim()
                         : null,
                 dueDate: dueDate || null,
+                startTime: startTime || null,
+                endTime: endTime || null,
                 sourceRitusRunId: sourceRitusRun?._id ? String(sourceRitusRun._id) : initialTask?.sourceRitusRunId || null,
                 contextRef: contextLabel.trim()
                     ? {
@@ -424,13 +442,39 @@ export function CreateSequaModal({
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Hedef Bitiş Tarihi (Opsiyonel)
+                                Görev Günü / Hedef Tarih (Opsiyonel)
                             </label>
                             <input
                                 type="date"
                                 value={dueDate}
                                 onChange={e => setDueDate(e.target.value)}
                                 className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Item 2: Optional Start Time and Optional End Time */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Başlangıç Saati (Opsiyonel)
+                            </label>
+                            <input
+                                type="time"
+                                value={startTime}
+                                onChange={e => setStartTime(e.target.value)}
+                                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Bitiş Saati (Opsiyonel)
+                            </label>
+                            <input
+                                type="time"
+                                value={endTime}
+                                onChange={e => setEndTime(e.target.value)}
+                                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
                             />
                         </div>
                     </div>
@@ -838,20 +882,12 @@ export function ConvertIssueModal({
 
     const handleAssigneeChange = email => {
         setAssignedTo(email);
-        if (email.toLowerCase() === VET_EMAIL.toLowerCase()) {
-            setTargetType('vet_request');
-        } else if (targetType === 'vet_request') {
-            setTargetType('task');
-        }
     };
 
     const handleTargetTypeChange = type => {
         setTargetType(type);
         if (type === 'vet_request') {
             setAssignedTo(VET_EMAIL);
-        } else if (type === 'task' && assignedTo.toLowerCase() === VET_EMAIL.toLowerCase()) {
-            const firstTech = staffList.find(m => m.pulsusRole === 'technician');
-            setAssignedTo(firstTech?.email || staffList[1]?.email || staffList[0]?.email);
         }
     };
 
@@ -1054,6 +1090,343 @@ export function ConvertIssueModal({
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Modal for Reviewer to request revision on a Sequa task in 'review' status
+ */
+export function SequaRevisionModal({ isOpen, onClose, task, onSubmit }) {
+    const [note, setNote] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    if (!isOpen || !task) return null;
+
+    const handleSubmit = async e => {
+        e.preventDefault();
+        setError('');
+        if (!note || note.trim().length < 2) {
+            setError('Lütfen en az 2 karakterli bir revizyon / tekrar gerekçesi giriniz.');
+            return;
+        }
+        setSubmitting(true);
+        try {
+            await onSubmit({
+                id: String(task._id),
+                action: 'request_revision',
+                note: note.trim()
+            });
+            onClose();
+        } catch (err) {
+            setError(err.message || 'Revizyon talebi gönderilemedi.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+                <div className="px-5 py-3.5 bg-amber-600 text-white flex items-center justify-between">
+                    <h3 className="text-sm font-bold flex items-center gap-2">
+                        <RotateCcw size={16} />
+                        Sequa Görevini Tekrarlat (Revizyon İste)
+                    </h3>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-black/10"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+                <form onSubmit={handleSubmit} className="p-5 space-y-3.5">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800">
+                        {task.title}
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Eksiklik / Tekrarlatma Gerekçesi *
+                        </label>
+                        <textarea
+                            rows={3}
+                            required
+                            value={note}
+                            onChange={e => setNote(e.target.value)}
+                            placeholder="Görevin neden tekrarlanması gerektiğini açıklayın..."
+                            className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                        />
+                    </div>
+                    {error && (
+                        <div className="p-2.5 rounded-xl bg-rose-50 text-xs font-semibold text-rose-700">
+                            {error}
+                        </div>
+                    )}
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                        >
+                            Vazgeç
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={submitting}
+                            className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
+                        >
+                            {submitting ? 'Gönderiliyor...' : '🔄 Tekrarlat'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Item 7: Detail Inspection Modal for Completed ('done') Ritus Runs and Sequa Tasks
+ */
+export function CompletedTaskDetailModal({
+    isOpen,
+    onClose,
+    item,
+    mode = 'sequa', // 'sequa' | 'ritus'
+    members = DEFAULT_STAFF_DIRECTORY,
+    canDelete = false,
+    onDelete = null
+}) {
+    if (!isOpen || !item) return null;
+
+    const staffList = members.length > 0 ? members : DEFAULT_STAFF_DIRECTORY;
+    const isRitus = mode === 'ritus';
+
+    const freq = isRitus ? RITUS_FREQUENCIES[item.frequency] || RITUS_FREQUENCIES.weekly : null;
+    const cat = isRitus ? RITUS_CATEGORIES[item.category] || RITUS_CATEGORIES.other : null;
+    const prio = !isRitus ? SEQUA_PRIORITIES[item.priority] || SEQUA_PRIORITIES.medium : null;
+    const tType = !isRitus ? SEQUA_TASK_TYPES[item.taskType] || SEQUA_TASK_TYPES.task : null;
+
+    const historyList = isRitus
+        ? Array.isArray(item.reviewHistory)
+            ? item.reviewHistory
+            : []
+        : Array.isArray(item.activityLog)
+          ? item.activityLog
+          : [];
+
+    const formatTimestamp = ts => {
+        if (!ts) return '-';
+        try {
+            return new Date(ts).toLocaleString('tr-TR', {
+                timeZone: 'Europe/Istanbul',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch {
+            return String(ts);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+                <div className="shrink-0 px-5 py-3.5 bg-gradient-to-r from-emerald-700 to-teal-700 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <CheckCircle2 size={18} className="text-emerald-200 shrink-0" />
+                        <div>
+                            <h3 className="text-sm sm:text-base font-bold">
+                                Onaylanan Görev Detayı ({isRitus ? 'Ritus Rutini' : 'Sequa Kaydı'})
+                            </h3>
+                            <p className="text-[11px] text-emerald-100">
+                                Tamamlanmış ve denetim onayı almış görev arşiv kartı
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+                    {/* Badges */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {isRitus ? (
+                                <>
+                                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${freq.badge}`}>
+                                        {freq.label}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${cat.color}`}>
+                                        {cat.label}
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${tType.badge}`}>
+                                        {tType.label}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-[11px] border ${prio.badge}`}>
+                                        {prio.label}
+                                    </span>
+                                </>
+                            )}
+                            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                ✅ Onaylandı &amp; Tamamlandı
+                            </span>
+                        </div>
+
+                        {isRitus ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                <Clock size={12} className="text-indigo-600" />
+                                {formatScheduledBadge(item.scheduledDate, item.scheduledTime)}
+                            </span>
+                        ) : (
+                            (item.dueDate || item.startTime || item.endTime) && (
+                                <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                    <Clock size={12} className="text-rose-600" />
+                                    {formatSequaDateTimeBadge(item.dueDate, item.startTime, item.endTime)}
+                                </span>
+                            )
+                        )}
+                    </div>
+
+                    {/* Title & Description */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                        <h4 className="text-sm font-extrabold text-slate-900">{item.title}</h4>
+                        {item.description && (
+                            <p className="text-xs text-slate-600 whitespace-pre-line">{item.description}</p>
+                        )}
+                    </div>
+
+                    {/* Context / External Info */}
+                    {item.contextRef?.label && (
+                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-700">
+                            📍 Konum / Birim: {item.contextRef.label}
+                        </div>
+                    )}
+
+                    {item.externalUnit && (
+                        <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 font-semibold text-purple-900">
+                            🏛️ Dış Birim: {item.externalUnit}
+                            {item.externalTicketNo && (
+                                <span className="block text-[11px] text-purple-700 mt-0.5">
+                                    Evrak / İş Emri No: {item.externalTicketNo}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Responsibility & Approval Metadata */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200">
+                        {!isRitus && (
+                            <div>
+                                <span className="text-slate-500 block text-[11px]">Oluşturan:</span>
+                                <strong className="text-slate-900">
+                                    {item.createdByName || getMemberName(item.createdBy, staffList)}
+                                </strong>
+                            </div>
+                        )}
+                        <div>
+                            <span className="text-slate-500 block text-[11px]">Görevi Yapan (Sorumlu):</span>
+                            <strong className="text-slate-900">
+                                {getMemberName(isRitus ? item.effectiveAssignee : item.assignedTo, staffList)}
+                            </strong>
+                        </div>
+                        <div>
+                            <span className="text-slate-500 block text-[11px]">Kontrolcü (Denetçi):</span>
+                            <strong className="text-slate-900">
+                                {getMemberName(isRitus ? item.effectiveReviewer : item.reviewerEmail, staffList)}
+                            </strong>
+                        </div>
+                        <div>
+                            <span className="text-slate-500 block text-[11px]">Onaylayan &amp; Kapanış Zamanı:</span>
+                            <strong className="text-emerald-900">
+                                {getMemberName(isRitus ? item.approvedBy || item.effectiveReviewer : item.completedBy || item.reviewerEmail, staffList)}
+                            </strong>
+                            <span className="block text-[10px] text-slate-500">
+                                {formatTimestamp(item.completedAt || item.updatedAt)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Ritus Checklist */}
+                    {isRitus && Array.isArray(item.checklist) && item.checklist.length > 0 && (
+                        <div className="space-y-1.5">
+                            <div className="font-bold text-slate-800">
+                                Tamamlanan Alt İş Paketleri ({item.checklist.filter(c => c.done).length}/{item.checklist.length})
+                            </div>
+                            <div className="space-y-1">
+                                {item.checklist.map((step, idx) => (
+                                    <div
+                                        key={step.id ?? idx}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-700"
+                                    >
+                                        <CheckSquare size={14} className="text-emerald-600 shrink-0" />
+                                        <span className="font-medium">{step.text}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Chronological History */}
+                    {historyList.length > 0 && (
+                        <div className="space-y-1.5">
+                            <div className="font-bold text-slate-800">Görev Kronolojisi &amp; Denetim Kayıtları</div>
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                {historyList.map((h, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] flex flex-col gap-0.5"
+                                    >
+                                        <div className="flex items-center justify-between font-bold text-slate-800">
+                                            <span>{h.byName || getMemberName(h.by, staffList)}</span>
+                                            <span className="text-[10px] text-slate-500 font-normal">
+                                                {formatTimestamp(h.at)}
+                                            </span>
+                                        </div>
+                                        {h.note && <div className="text-slate-600">{h.note}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="shrink-0 px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                    {canDelete && onDelete ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onClose();
+                                onDelete(item._id);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold"
+                        >
+                            <Trash2 size={13} />
+                            Kaydı Sil
+                        </button>
+                    ) : (
+                        <div />
+                    )}
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+                    >
+                        Kapat
+                    </button>
+                </div>
             </div>
         </div>
     );

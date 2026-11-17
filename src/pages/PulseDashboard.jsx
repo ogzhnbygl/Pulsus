@@ -18,6 +18,8 @@ import {
     Link2,
     CheckSquare,
     Square,
+    Lock,
+    Unlock,
     AlertCircle,
     X
 } from 'lucide-react';
@@ -30,6 +32,7 @@ import {
     SEQUA_PRIORITIES,
     SEQUA_TASK_TYPES,
     formatScheduledBadge,
+    formatSequaDateTimeBadge,
     getMemberName,
     getTodayIstanbulDateStr,
     getWeekDaysList,
@@ -153,7 +156,13 @@ export default function PulseDashboard() {
         myRitusRuns = allMyPendingRuns.filter(r => r.scheduledDate === dayFilter);
     }
     const mySequaTasks = sequaTasks.filter(
-        t => String(t.assignedTo || '').toLowerCase() === myEmail && t.status !== 'done'
+        t =>
+            t.status !== 'done' &&
+            (String(t.assignedTo || '').toLowerCase() === myEmail ||
+                (t.status === 'review' &&
+                    (String(t.reviewerEmail || '').toLowerCase() === myEmail ||
+                        String(t.createdBy || '').toLowerCase() === myEmail ||
+                        String(t.convertedBy || '').toLowerCase() === myEmail)))
     );
 
     // Vet specific queues
@@ -443,46 +452,108 @@ export default function PulseDashboard() {
                                         Bekleyen muayene talebi veya bildirim yok.
                                     </div>
                                 ) : (
-                                    vetRequests.map(task => (
-                                        <div
-                                            key={task._id}
-                                            className="p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-200 text-xs space-y-1.5"
-                                        >
-                                            <div className="flex items-center justify-between gap-1">
-                                                <span className="font-bold text-slate-800">{task.title}</span>
-                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700">
-                                                    {task.taskType === 'vet_request' ? 'Muayene' : 'Bildirim'}
-                                                </span>
+                                    vetRequests.map(task => {
+                                        const isVetSelfReviewed =
+                                            String(task.reviewerEmail || '').toLowerCase() ===
+                                            VET_EMAIL.toLowerCase();
+                                        return (
+                                            <div
+                                                key={task._id}
+                                                className="p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-200 text-xs space-y-1.5"
+                                            >
+                                                <div className="flex items-center justify-between gap-1">
+                                                    <span className="font-bold text-slate-800">{task.title}</span>
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700">
+                                                        {task.taskType === 'vet_request'
+                                                            ? 'Muayene'
+                                                            : task.taskType === 'issue_report'
+                                                              ? 'Bildirim'
+                                                              : 'Görev'}
+                                                    </span>
+                                                </div>
+                                                {task.description && (
+                                                    <p className="text-[11px] text-slate-600 line-clamp-2">
+                                                        {task.description}
+                                                    </p>
+                                                )}
+                                                <div className="text-[10px] text-slate-500">
+                                                    Oluşturan: <strong>{task.createdByName || getMemberName(task.createdBy, members)}</strong>
+                                                    {' • '}Kontrolcü: <strong>{getMemberName(task.reviewerEmail || task.createdBy, members)}</strong>
+                                                </div>
+                                                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                                    {(task.status === 'reported' || task.status === 'todo') && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleSequaQuickAction(
+                                                                    task._id,
+                                                                    'move_status',
+                                                                    { status: 'in_progress' }
+                                                                )
+                                                            }
+                                                            className="min-h-[38px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                                                        >
+                                                            Başlat / İşleme Al
+                                                        </button>
+                                                    )}
+                                                    {task.status === 'in_progress' && (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleSequaQuickAction(
+                                                                        task._id,
+                                                                        'move_status',
+                                                                        { status: 'review' }
+                                                                    )
+                                                                }
+                                                                className="min-h-[38px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
+                                                            >
+                                                                Kontrole Gönder
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleSequaQuickAction(
+                                                                        task._id,
+                                                                        'revert_to_todo'
+                                                                    )
+                                                                }
+                                                                className="min-h-[38px] inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs"
+                                                            >
+                                                                <RotateCcw size={12} />
+                                                                Geri Bırak
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {task.status === 'reported' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setConvertModal({ open: true, task })
+                                                            }
+                                                            className="min-h-[38px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-800 font-bold text-xs"
+                                                        >
+                                                            Göreve / Dış Birime Dönüştür
+                                                        </button>
+                                                    )}
+                                                    {(task.status === 'review' || isVetSelfReviewed) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleSequaQuickAction(task._id, 'approve', {
+                                                                    note: 'Veteriner Hekim tarafından incelendi ve çözüldü.'
+                                                                })
+                                                            }
+                                                            className="min-h-[38px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                                        >
+                                                            ✓ Çözüldü
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {task.description && (
-                                                <p className="text-[11px] text-slate-600 line-clamp-2">
-                                                    {task.description}
-                                                </p>
-                                            )}
-                                            <div className="flex items-center gap-2 pt-1 flex-wrap">
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setConvertModal({ open: true, task })
-                                                    }
-                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-                                                >
-                                                    Göreve / Dış Birime Dönüştür
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleSequaQuickAction(task._id, 'approve', {
-                                                            note: 'Veteriner Hekim tarafından incelendi ve çözüldü.'
-                                                        })
-                                                    }
-                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
-                                                >
-                                                    ✓ Çözüldü
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>
@@ -588,37 +659,51 @@ export default function PulseDashboard() {
                         🔄 Denetçi Tarafından Tekrarlatılan (Revizyon Bekleyen) Görevleriniz ({myRepeatedRuns.length})
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {myRepeatedRuns.map(run => (
-                            <div
-                                key={run._id}
-                                className="bg-white rounded-xl p-3.5 border border-amber-300 flex flex-col justify-between gap-2"
-                            >
-                                <div>
-                                    <div className="flex items-center justify-between text-xs font-bold text-amber-800">
-                                        <span>{run.title}</span>
-                                        <span>{run.revisionCount}. Kez Tekrarlatıldı</span>
+                        {myRepeatedRuns.map(run => {
+                            const isOffDay = run.scheduledDate && run.scheduledDate !== todayStr;
+                            const canStartRepeat = !isOffDay || isVet || run.offDayStartAllowed;
+                            return (
+                                <div
+                                    key={run._id}
+                                    className="bg-white rounded-xl p-3.5 border border-amber-300 flex flex-col justify-between gap-2"
+                                >
+                                    <div>
+                                        <div className="flex items-center justify-between text-xs font-bold text-amber-800">
+                                            <span>{run.title}</span>
+                                            <span>{run.revisionCount}. Kez Tekrarlatıldı</span>
+                                        </div>
+                                        <div className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                                            📅 Planlanan Zaman: {formatScheduledBadge(run.scheduledDate, run.scheduledTime)}
+                                        </div>
+                                        {run.lastRevisionNote && (
+                                            <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2 mt-1.5">
+                                                <strong>Denetçi Notu:</strong> {run.lastRevisionNote}
+                                            </p>
+                                        )}
                                     </div>
-                                    {run.lastRevisionNote && (
-                                        <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2 mt-1.5">
-                                            <strong>Denetçi Notu:</strong> {run.lastRevisionNote}
-                                        </p>
-                                    )}
+                                    <div className="flex items-center justify-end gap-2 pt-2">
+                                        {canStartRepeat ? (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleRitusQuickAction(run._id, 'start', {
+                                                        note: 'Tekrarlatılan görev başlatıldı.'
+                                                    })
+                                                }
+                                                className="min-h-[40px] inline-flex items-center justify-center px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
+                                            >
+                                                Tekrarı Başlat
+                                            </button>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-xs font-semibold">
+                                                <Lock size={12} />
+                                                Günü Değil ({run.scheduledDate} • Hekim İzni Gerekli)
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex items-center justify-end gap-2 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            handleRitusQuickAction(run._id, 'submit_for_review', {
-                                                note: 'Eksiklikler giderilerek tekrar kontrole gönderildi.'
-                                            })
-                                        }
-                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
-                                    >
-                                        Eksikleri Giderdim &amp; Tekrar Kontrole Gönder
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -819,13 +904,20 @@ export default function PulseDashboard() {
                                             </div>
                                         )}
 
-                                        {/* Interactive Checklist directly on Pulsus Dashboard */}
+                                        {/* Item 5: Interactive Checklist — strictly locked until run.status === 'in_progress' */}
                                         {run.checklist?.length > 0 && (
                                             <div className="space-y-1.5 pt-1.5 border-t border-slate-200/70">
+                                                {(run.status === 'todo' || run.status === 'needs_revision') && (
+                                                    <div className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                                                        <Lock size={12} className="shrink-0 text-amber-700" />
+                                                        <span>Alt iş adımlarını tamamlamak için önce &quot;Başlat&quot; butonuna basınız.</span>
+                                                    </div>
+                                                )}
                                                 {run.checklist.map((item, idx) => (
                                                     <button
                                                         key={item.id ?? idx}
                                                         type="button"
+                                                        disabled={run.status !== 'in_progress'}
                                                         onClick={() =>
                                                             handleRitusQuickAction(
                                                                 run._id,
@@ -833,7 +925,7 @@ export default function PulseDashboard() {
                                                                 { checklistItemId: item.id ?? idx }
                                                             )
                                                         }
-                                                        className="w-full flex items-center gap-2.5 text-left text-xs text-slate-700 hover:text-indigo-700 hover:bg-slate-100/80 rounded-lg min-h-[44px] py-2.5 px-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                        className="w-full flex items-center gap-2.5 text-left text-xs text-slate-700 hover:text-indigo-700 hover:bg-slate-100/80 rounded-lg min-h-[44px] py-2.5 px-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                                                     >
                                                         {item.done ? (
                                                             <CheckSquare
@@ -881,31 +973,40 @@ export default function PulseDashboard() {
                                                     onClick={() => {
                                                         setSourceRitusForSequa(run);
                                                         setSequaModalInitialType(
-                                                            isCaretaker ? 'issue_report' : 'vet_request'
+                                                            isCaretaker ? 'issue_report' : 'task'
                                                         );
                                                         setSequaModalOpen(true);
                                                     }}
-                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs gap-1.5"
+                                                    className="min-h-[40px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs gap-1.5"
                                                     title="Bu rutinde karşılaşılan sorunu bildir"
                                                 >
                                                     <Link2 size={13} />
                                                     {isCaretaker ? 'Sorun Bildir' : 'Sorun / Sequa Aç'}
                                                 </button>
 
-                                                {run.status === 'todo' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleRitusQuickAction(run._id, 'start')
-                                                        }
-                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs"
-                                                    >
-                                                        Başlat
-                                                    </button>
+                                                {(run.status === 'todo' || run.status === 'needs_revision') && (
+                                                    (run.scheduledDate === todayStr || isVet || run.offDayStartAllowed) ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleRitusQuickAction(run._id, 'start')
+                                                            }
+                                                            className="min-h-[40px] inline-flex items-center justify-center px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs"
+                                                        >
+                                                            {run.status === 'needs_revision' ? 'Tekrarı Başlat' : 'Başlat'}
+                                                        </button>
+                                                    ) : (
+                                                        <span
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-xs font-semibold"
+                                                            title="Farklı gündeki göreve yalnızca Veteriner Hekim izin verdiğinde başlanabilir"
+                                                        >
+                                                            <Lock size={12} />
+                                                            Günü Değil (Hekim İzni Gerekli)
+                                                        </span>
+                                                    )
                                                 )}
 
-                                                {(run.status === 'in_progress' ||
-                                                    run.status === 'needs_revision') &&
+                                                {run.status === 'in_progress' &&
                                                     (() => {
                                                         const checklist = Array.isArray(run.checklist)
                                                             ? run.checklist
@@ -918,28 +1019,42 @@ export default function PulseDashboard() {
                                                             totalItems === 0 ||
                                                             doneItems === totalItems;
 
-                                                        if (allItemsDone) {
-                                                            return (
+                                                        return (
+                                                            <>
+                                                                {allItemsDone ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handleRitusQuickAction(
+                                                                                run._id,
+                                                                                'submit_for_review'
+                                                                            )
+                                                                        }
+                                                                        className="min-h-[40px] inline-flex items-center justify-center px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-xs"
+                                                                    >
+                                                                        <CheckCircle2 size={14} />
+                                                                        Kontrole Gönder
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-semibold text-xs border border-slate-200">
+                                                                        {doneItems}/{totalItems} Madde Tamamlandı
+                                                                    </span>
+                                                                )}
                                                                 <button
                                                                     type="button"
                                                                     onClick={() =>
                                                                         handleRitusQuickAction(
                                                                             run._id,
-                                                                            'submit_for_review'
+                                                                            'revert_to_todo'
                                                                         )
                                                                     }
-                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-xs"
+                                                                    className="min-h-[40px] inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs"
+                                                                    title="Görevi yarıda bırak ve yapılacaklara geri al"
                                                                 >
-                                                                    <CheckCircle2 size={14} />
-                                                                    Kontrole Gönder
+                                                                    <RotateCcw size={12} />
+                                                                    Geri Bırak
                                                                 </button>
-                                                            );
-                                                        }
-
-                                                        return (
-                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-semibold text-xs border border-slate-200">
-                                                                {doneItems}/{totalItems} Madde Tamamlandı
-                                                            </span>
+                                                            </>
                                                         );
                                                     })()}
 
@@ -997,6 +1112,17 @@ export default function PulseDashboard() {
                                     SEQUA_PRIORITIES[task.priority] || SEQUA_PRIORITIES.medium;
                                 const tType =
                                     SEQUA_TASK_TYPES[task.taskType] || SEQUA_TASK_TYPES.task;
+                                const isAssigned =
+                                    String(task.assignedTo || '').toLowerCase() === myEmail;
+                                const isReviewer =
+                                    String(task.reviewerEmail || '').toLowerCase() === myEmail ||
+                                    String(task.createdBy || '').toLowerCase() === myEmail ||
+                                    String(task.convertedBy || '').toLowerCase() === myEmail;
+                                const dateTimeBadge = formatSequaDateTimeBadge(
+                                    task.dueDate,
+                                    task.startTime,
+                                    task.endTime
+                                );
                                 return (
                                     <div
                                         key={task._id}
@@ -1016,12 +1142,19 @@ export default function PulseDashboard() {
                                                     {prio.label}
                                                 </span>
                                             </div>
-                                            {task.dueDate && (
-                                                <span className="text-[11px] font-semibold text-slate-600">
-                                                    Termin: {task.dueDate}
+                                            {dateTimeBadge && (
+                                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                                    <Clock size={11} className="text-rose-600" />
+                                                    {dateTimeBadge}
                                                 </span>
                                             )}
                                         </div>
+
+                                        {task.incompleteAtDayEnd && task.status === 'todo' && (
+                                            <div className="p-2 rounded-lg bg-amber-50 border border-amber-300 text-[10px] font-bold text-amber-900">
+                                                ⏰ Gün Sonu Tamamlanmadı — Yapılmamış Olarak Tekrar Atandı
+                                            </div>
+                                        )}
 
                                         <div className="text-sm font-bold text-slate-900">
                                             {task.title}
@@ -1036,28 +1169,56 @@ export default function PulseDashboard() {
                                             </div>
                                         )}
 
-                                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80 text-[11px] text-slate-500">
-                                            <span>
-                                                Oluşturan:{' '}
-                                                <strong className="text-slate-700">
-                                                    {task.createdByName ||
-                                                        getMemberName(task.createdBy, members)}
-                                                </strong>
-                                            </span>
+                                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80 text-[11px] text-slate-500 flex-wrap">
+                                            <div className="space-x-2">
+                                                <span>
+                                                    Oluşturan:{' '}
+                                                    <strong className="text-slate-700">
+                                                        {task.createdByName ||
+                                                            getMemberName(task.createdBy, members)}
+                                                    </strong>
+                                                </span>
+                                                <span>
+                                                    • Kontrolcü:{' '}
+                                                    <strong className="text-slate-700">
+                                                        {getMemberName(
+                                                            task.reviewerEmail || task.createdBy,
+                                                            members
+                                                        )}
+                                                    </strong>
+                                                </span>
+                                            </div>
 
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 {task.status === 'reported' && !isCaretaker && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setConvertModal({ open: true, task })
-                                                        }
-                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-                                                    >
-                                                        Göreve Dönüştür
-                                                    </button>
+                                                    <>
+                                                        {(isAssigned || isVet) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleSequaQuickAction(
+                                                                        task._id,
+                                                                        'move_status',
+                                                                        { status: 'in_progress' }
+                                                                    )
+                                                                }
+                                                                className="min-h-[40px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                                            >
+                                                                Üstlen &amp; Başlat
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setConvertModal({ open: true, task })
+                                                            }
+                                                            className="min-h-[40px] inline-flex items-center justify-center px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                                                        >
+                                                            Göreve Dönüştür
+                                                        </button>
+                                                    </>
                                                 )}
-                                                {task.status === 'todo' && (
+                                                {task.status === 'todo' && (isAssigned || isVet) && (
                                                     <button
                                                         type="button"
                                                         onClick={() =>
@@ -1067,31 +1228,46 @@ export default function PulseDashboard() {
                                                                 { status: 'in_progress' }
                                                             )
                                                         }
-                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                                                        className="min-h-[40px] inline-flex items-center justify-center px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                                                     >
                                                         İşleme Al
                                                     </button>
                                                 )}
-                                                {task.status === 'in_progress' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleSequaQuickAction(
-                                                                task._id,
-                                                                'move_status',
-                                                                { status: 'review' }
-                                                            )
-                                                        }
-                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
-                                                    >
-                                                        Kontrole Gönder
-                                                    </button>
+                                                {task.status === 'in_progress' && (isAssigned || isVet) && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleSequaQuickAction(
+                                                                    task._id,
+                                                                    'move_status',
+                                                                    { status: 'review' }
+                                                                )
+                                                            }
+                                                            className="min-h-[40px] inline-flex items-center justify-center px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
+                                                        >
+                                                            Kontrole Gönder
+                                                        </button>
+                                                        {task.taskType !== 'external' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleSequaQuickAction(
+                                                                        task._id,
+                                                                        'revert_to_todo'
+                                                                    )
+                                                                }
+                                                                className="min-h-[40px] inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs"
+                                                                title="Görevi yarıda bırak ve yapılacaklara geri al"
+                                                            >
+                                                                <RotateCcw size={12} />
+                                                                Geri Bırak
+                                                            </button>
+                                                        )}
+                                                    </>
                                                 )}
                                                 {task.status === 'review' && (
-                                                    (isVet ||
-                                                        (String(task.reviewerEmail || '').toLowerCase() === myEmail &&
-                                                            task.taskType !== 'vet_request' &&
-                                                            String(task.assignedTo || '').toLowerCase() !== VET_EMAIL.toLowerCase())) ? (
+                                                    (isVet || isReviewer) && !isCaretaker ? (
                                                         <button
                                                             type="button"
                                                             onClick={() =>
@@ -1100,7 +1276,7 @@ export default function PulseDashboard() {
                                                                     'approve'
                                                                 )
                                                             }
-                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                                            className="min-h-[40px] inline-flex items-center justify-center px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
                                                         >
                                                             ✓ Onayla &amp; Kapat
                                                         </button>
@@ -1109,20 +1285,6 @@ export default function PulseDashboard() {
                                                             🔍 Denetçi Onayı Bekliyor
                                                         </span>
                                                     )
-                                                )}
-                                                {isVet && task.status !== 'review' && task.status !== 'done' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleSequaQuickAction(
-                                                                task._id,
-                                                                'approve'
-                                                            )
-                                                        }
-                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
-                                                    >
-                                                        ✓ Hekim Onayıyla Kapat
-                                                    </button>
                                                 )}
                                             </div>
                                         </div>

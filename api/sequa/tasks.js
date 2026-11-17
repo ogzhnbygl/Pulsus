@@ -1,8 +1,16 @@
 import { verifyUser, ensureDefaultMembers, VET_EMAIL } from '../lib/auth.js';
 import clientPromise, { getDbName } from '../../lib/mongodb.js';
-import { isUserOnLeave } from '../../lib/assignmentResolver.js';
+import { isUserOnLeave, toDateKey } from '../../lib/assignmentResolver.js';
+import { getTodayIstanbulDateStr } from '../../lib/ritusEngine.js';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
+
+const timeFieldSchema = z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Saat HH:mm formatında olmalıdır.')
+    .nullable()
+    .optional()
+    .or(z.literal(''));
 
 const contextRefSchema = z
     .object({
@@ -30,6 +38,8 @@ const createSequaSchema = z.object({
         .nullable()
         .optional()
         .or(z.literal('')),
+    startTime: timeFieldSchema,
+    endTime: timeFieldSchema,
     sourceRitusRunId: z.string().nullable().optional(),
     contextRef: contextRefSchema
 });
@@ -39,6 +49,7 @@ const patchSequaSchema = z.object({
     action: z
         .enum([
             'move_status',
+            'revert_to_todo',
             'convert_to_task',
             'request_revision',
             'approve',
@@ -61,6 +72,8 @@ const patchSequaSchema = z.object({
         .nullable()
         .optional()
         .or(z.literal('')),
+    startTime: timeFieldSchema,
+    endTime: timeFieldSchema,
     contextRef: contextRefSchema,
     priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
     note: z.string().max(1000).optional().default('')
@@ -79,7 +92,7 @@ const DEFAULT_SEQUA_TASKS = [
         createdByRole: 'technician',
         assignedTo: 'oguzhan.baygul@medeniyet.edu.tr',
         assignedToRole: 'vet',
-        reviewerEmail: 'oguzhan.baygul@medeniyet.edu.tr',
+        reviewerEmail: 'kubra.celik@medeniyet.edu.tr',
         externalUnit: null,
         externalTicketNo: null,
         sourceRitusRunId: null,
@@ -162,6 +175,53 @@ async function ensureDefaultSequaTasks(db) {
     );
 }
 
+/**
+ * Item 3: Automatically resets started ('in_progress') Sequa tasks back to 'todo' (yapılmamış)
+ * if they were not completed / sent to review by the end of the day they were started (or their dueDate).
+ */
+async function autoResetEndOfDayIncompleteSequaTasks(sequaCol) {
+    try {
+        const todayStr = getTodayIstanbulDateStr();
+        const now = new Date();
+        const inProgressTasks = await sequaCol
+            .find({
+                status: 'in_progress',
+                taskType: { $ne: 'external' }
+            })
+            .toArray();
+
+        for (const t of inProgressTasks) {
+            const startedDay = toDateKey(t.startedAt || t.updatedAt || t.createdAt);
+            const isPastStartedDay = startedDay && startedDay < todayStr;
+            const isPastDueDate = t.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(t.dueDate) && t.dueDate < todayStr;
+            if (isPastStartedDay || isPastDueDate) {
+                await sequaCol.updateOne(
+                    { _id: t._id, status: 'in_progress' },
+                    {
+                        $set: {
+                            status: 'todo',
+                            startedAt: null,
+                            incompleteAtDayEnd: true,
+                            updatedAt: now
+                        },
+                        $push: {
+                            activityLog: {
+                                action: 'auto_day_end_incomplete_reset',
+                                by: 'system',
+                                byName: 'Sistem (Gün Sonu Otomasyonu)',
+                                at: now,
+                                note: 'Başlanan görev gün sonuna kadar tamamlanmadığı (onaya gönderilmediği) için yarıda kaldı ve tekrardan yapılmamış (Yapılacak) olarak atandı.'
+                            }
+                        }
+                    }
+                );
+            }
+        }
+    } catch {
+        // Ignore on cold boot or mock DBs
+    }
+}
+
 export default async function handler(req, res) {
     let user;
     try {
@@ -178,27 +238,34 @@ export default async function handler(req, res) {
     const sequaCol = db.collection('sequa_tasks');
     const membersCol = db.collection('members');
 
-    // Self-heal: ensure tasks assigned to Sorumlu Veteriner Hekim have taskType: 'vet_request' and reviewer: Vet
+    // Item 8 Self-heal: Ensure reviewerEmail is the creator (or converter) when a Technician created/assigned a task for Vet
     try {
-        await sequaCol.updateMany(
-            {
+        const vetAssignedTasks = await sequaCol
+            .find({
                 assignedTo: VET_EMAIL.toLowerCase(),
-                taskType: 'task'
-            },
-            {
-                $set: {
-                    taskType: 'vet_request',
-                    assignedToRole: 'vet',
-                    reviewerEmail: VET_EMAIL.toLowerCase()
-                }
+                reviewerEmail: VET_EMAIL.toLowerCase(),
+                createdBy: { $ne: VET_EMAIL.toLowerCase() }
+            })
+            .toArray();
+        for (const vt of vetAssignedTasks) {
+            const rightfulReviewer =
+                vt.convertedBy ||
+                (vt.createdByRole !== 'caretaker' && vt.createdBy ? vt.createdBy : null);
+            if (rightfulReviewer && rightfulReviewer.toLowerCase() !== VET_EMAIL.toLowerCase()) {
+                await sequaCol.updateOne(
+                    { _id: vt._id },
+                    { $set: { reviewerEmail: rightfulReviewer.toLowerCase() } }
+                );
             }
-        );
+        }
     } catch {
         // Silently skip if query fails during cold boot
     }
 
     if (req.method === 'GET') {
         try {
+            await autoResetEndOfDayIncompleteSequaTasks(sequaCol);
+
             const filter = {};
             if (req.query?.taskType && typeof req.query.taskType === 'string') {
                 filter.taskType = req.query.taskType.trim();
@@ -232,6 +299,12 @@ export default async function handler(req, res) {
         const data = parsed.data;
         const userRole = user.pulsusRole;
         const userEmail = user.email.toLowerCase();
+
+        if (data.startTime && data.endTime && data.endTime < data.startTime) {
+            return res.status(400).json({
+                error: 'Bitiş saati başlangıç saatinden önce olamaz.'
+            });
+        }
 
         // Role enforcement for Caretaker
         if (userRole === 'caretaker') {
@@ -274,17 +347,18 @@ export default async function handler(req, res) {
             const checkDateStr =
                 data.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(data.dueDate)
                     ? data.dueDate
-                    : new Date().toISOString().slice(0, 10);
+                    : getTodayIstanbulDateStr();
 
             let effectiveAssignee = targetEmail;
             let delegatedFrom = null;
             let leaveDelegationNote = null;
 
-            const leaveCheck = await isUserOnLeave(client, targetEmail, checkDateStr, null);
+            const scheduledTime = data.startTime || null;
+            const leaveCheck = await isUserOnLeave(client, targetEmail, checkDateStr, scheduledTime);
             if (leaveCheck.onLeave && targetEmail !== VET_EMAIL) {
                 const backupEmail = targetMember?.defaultBackupEmail?.toLowerCase();
                 if (backupEmail && backupEmail !== targetEmail) {
-                    const backupLeave = await isUserOnLeave(client, backupEmail, checkDateStr, null);
+                    const backupLeave = await isUserOnLeave(client, backupEmail, checkDateStr, scheduledTime);
                     if (!backupLeave.onLeave) {
                         effectiveAssignee = backupEmail;
                         delegatedFrom = targetEmail;
@@ -306,6 +380,7 @@ export default async function handler(req, res) {
                 effectiveMember?.pulsusRole || (effectiveAssignee === VET_EMAIL ? 'vet' : 'caretaker');
 
             const initialStatus = data.taskType === 'issue_report' ? 'reported' : 'todo';
+            // Item 8: Kontrolcü (reviewerEmail) görevi oluşturan kişi olmalıdır (bakıcı hariç)
             const reviewerEmail = data.reviewerEmail
                 ? data.reviewerEmail.trim().toLowerCase()
                 : userRole === 'caretaker'
@@ -332,6 +407,8 @@ export default async function handler(req, res) {
                 externalContact: data.externalContact || null,
                 externalTicketNo: data.externalTicketNo || null,
                 dueDate: data.dueDate || null,
+                startTime: data.startTime || null,
+                endTime: data.endTime || null,
                 sourceRitusRunId: data.sourceRitusRunId || null,
                 contextRef: data.contextRef || null,
                 revisionCount: 0,
@@ -414,20 +491,32 @@ export default async function handler(req, res) {
                     });
                 }
 
+                const members = await membersCol.find({}).toArray();
+                const memberMap = new Map(members.map(m => [m.email.toLowerCase(), m]));
+
                 const newAssignee = data.assignedTo
                     ? data.assignedTo.trim().toLowerCase()
                     : existing.assignedTo;
-                const isTargetVet = newAssignee === VET_EMAIL.toLowerCase();
-                const newTaskType = isTargetVet
-                    ? 'vet_request'
-                    : (data.taskType || (data.externalUnit ? 'external' : 'task'));
+                const targetMember = memberMap.get(newAssignee);
+                const isTargetVet =
+                    newAssignee === VET_EMAIL.toLowerCase() || targetMember?.pulsusRole === 'vet';
+                const newTaskType =
+                    data.taskType ||
+                    (data.externalUnit ? 'external' : isTargetVet ? 'vet_request' : 'task');
 
                 const updatePayload = {
                     taskType: newTaskType,
-                    status: data.status || 'todo',
+                    status: data.status || (newTaskType === 'external' ? 'in_progress' : 'todo'),
                     assignedTo: newAssignee,
-                    assignedToRole: isTargetVet ? 'vet' : (newTaskType === 'external' ? 'external' : 'technician'),
-                    reviewerEmail: isTargetVet ? VET_EMAIL.toLowerCase() : userEmail,
+                    assignedToRole: isTargetVet
+                        ? 'vet'
+                        : newTaskType === 'external'
+                          ? 'external'
+                          : targetMember?.pulsusRole || 'technician',
+                    // Item 8 & 10: Kontrolcü (reviewerEmail) görevi açan / dönüştüren kişi olmalıdır
+                    reviewerEmail: userEmail,
+                    convertedBy: userEmail,
+                    convertedByName: user.name,
                     externalUnit:
                         newTaskType === 'external'
                             ? (data.externalUnit || existing.externalUnit || 'Üniversite Teknik Birimi')
@@ -459,11 +548,60 @@ export default async function handler(req, res) {
                 return res.status(200).json({ task: updated });
             }
 
+            // 1b. revert_to_todo (Item 3: Unstart / release an in_progress task back to 'todo')
+            if (data.action === 'revert_to_todo') {
+                const isVet = userRole === 'vet' || user.role === 'admin' || user.role === 'vet';
+                const isAssigned = existing.assignedTo?.toLowerCase() === userEmail;
+                if (!isAssigned && !isVet) {
+                    return res.status(403).json({
+                        error: 'Başlanan görevi yalnızca görevi yürüten personel veya Veteriner Hekim geri bırakabilir.'
+                    });
+                }
+                if (existing.status !== 'in_progress') {
+                    return res.status(400).json({
+                        error: 'Yalnızca işlemdeki (başlatılmış) görevler geri bırakılabilir.'
+                    });
+                }
+
+                const logEntry = {
+                    action: 'revert_to_todo',
+                    by: userEmail,
+                    byName: user.name,
+                    at: now,
+                    note: data.note || 'Başlanan görev yarıda bırakılarak yapılacaklara geri alındı.'
+                };
+
+                await sequaCol.updateOne(
+                    { _id: taskObjectId },
+                    {
+                        $set: {
+                            status: 'todo',
+                            startedAt: null,
+                            updatedAt: now
+                        },
+                        $push: { activityLog: logEntry }
+                    }
+                );
+
+                const updated = await sequaCol.findOne({ _id: taskObjectId });
+                return res.status(200).json({ task: updated });
+            }
+
             // 2. request_revision
             if (data.action === 'request_revision') {
                 if (userRole === 'caretaker') {
                     return res.status(403).json({
                         error: 'Bakıcı/Temizlik personeli revizyon talep edemez.'
+                    });
+                }
+                const isVet = userRole === 'vet' || user.role === 'admin' || user.role === 'vet';
+                const isReviewer = existing.reviewerEmail?.toLowerCase() === userEmail;
+                const isCreator =
+                    existing.createdBy?.toLowerCase() === userEmail ||
+                    existing.convertedBy?.toLowerCase() === userEmail;
+                if (!isReviewer && !isCreator && !isVet) {
+                    return res.status(403).json({
+                        error: 'Yalnızca görevin kontrolcüsü (görevi oluşturan) veya Sorumlu Veteriner Hekim revizyon talep edebilir.'
                     });
                 }
                 if (!data.note || data.note.trim().length < 2) {
@@ -505,13 +643,16 @@ export default async function handler(req, res) {
                     });
                 }
 
-                const isTaskForVet =
-                    existing.taskType === 'vet_request' ||
-                    existing.assignedTo?.toLowerCase() === VET_EMAIL.toLowerCase();
+                const isVet = userRole === 'vet' || user.role === 'admin' || user.role === 'vet';
+                const isReviewer = existing.reviewerEmail?.toLowerCase() === userEmail;
+                const isCreator =
+                    existing.createdBy?.toLowerCase() === userEmail ||
+                    existing.convertedBy?.toLowerCase() === userEmail;
 
-                if (isTaskForVet && userRole !== 'vet' && user.role !== 'admin') {
+                // Item 8: If Technician created the task and sent it to Vet, Technician is the reviewer/creator and CAN approve it when in 'review'!
+                if (!isReviewer && !isCreator && !isVet) {
                     return res.status(403).json({
-                        error: 'Veteriner hekime ait görevler ve klinik karar talepleri yalnızca Sorumlu Veteriner Hekim tarafından onaylanıp kapatılabilir.'
+                        error: 'Yalnızca görevin Kontrolcüsü (Oluşturan) veya Sorumlu Veteriner Hekim görevi onaylayıp kapatabilir.'
                     });
                 }
 
@@ -521,9 +662,12 @@ export default async function handler(req, res) {
                     });
                 }
 
-                const isVetRequestByVet =
-                    existing.taskType === 'vet_request' && (userRole === 'vet' || user.role === 'admin');
-                if (existing.status !== 'review' && !isVetRequestByVet) {
+                const canDirectCloseByVet =
+                    isVet &&
+                    (existing.taskType === 'vet_request' || existing.taskType === 'issue_report') &&
+                    existing.reviewerEmail?.toLowerCase() === VET_EMAIL.toLowerCase();
+
+                if (existing.status !== 'review' && !canDirectCloseByVet) {
                     return res.status(400).json({
                         error: 'Görev tamamlanmadan veya denetime sunulmadan doğrudan onaylanamaz.'
                     });
@@ -589,22 +733,38 @@ export default async function handler(req, res) {
                 return res.status(200).json({ task: updated });
             }
 
-            // 5. edit_task (Edit task fields when in 'reported' / 'todo' or by Vet)
+            // 5. edit_task (Item 1 & Item 4: Only task creator or Vet can edit, and NEVER when in 'review' or 'done')
             if (data.action === 'edit_task') {
                 const isVet = userRole === 'vet' || user.role === 'admin' || user.role === 'vet';
                 const isTech = userRole === 'technician' || user.role === 'technician';
-                const isCreator = existing.createdBy?.toLowerCase() === userEmail;
+                const isCreator =
+                    existing.createdBy?.toLowerCase() === userEmail ||
+                    existing.convertedBy?.toLowerCase() === userEmail;
 
-                if (!isVet && !isTech && !isCreator) {
+                // Item 1: Onaya gönderilen ('review') veya onaylanmış ('done') görev şeffaflık gereği düzenlenemez!
+                if (['review', 'done'].includes(existing.status)) {
                     return res.status(403).json({
-                        error: 'Bu görevi düzenleme yetkiniz bulunmuyor.'
+                        error: 'Onaya gönderilmiş (Kontrolde) veya tamamlanmış bir görev şeffaflık gereği düzenlenemez.'
+                    });
+                }
+
+                // Item 4: Verilen görevler sadece görevi veren kişi veya Vet. Hekim tarafından düzenlenebilir
+                if (!isVet && !isCreator) {
+                    return res.status(403).json({
+                        error: 'Verilen görevler yalnızca görevi oluşturan kişi veya Sorumlu Veteriner Hekim tarafından düzenlenebilir.'
                     });
                 }
 
                 // If existing.status is not 'reported' or 'todo', restrict editing to 'vet' or 'admin'
                 if (!['reported', 'todo'].includes(existing.status) && !isVet) {
                     return res.status(403).json({
-                        error: 'Yalnızca bildirilmiş veya yapılacak aşamasındaki görevler düzenlenebilir. İlerlemiş görevleri yalnızca Veteriner Hekim veya Yönetici düzenleyebilir.'
+                        error: 'Yalnızca bildirilmiş veya yapılacak aşamasındaki görevler düzenlenebilir. İlerlemiş görevleri yalnızca Veteriner Hekim düzenleyebilir.'
+                    });
+                }
+
+                if (data.startTime && data.endTime && data.endTime < data.startTime) {
+                    return res.status(400).json({
+                        error: 'Bitiş saati başlangıç saatinden önce olamaz.'
                     });
                 }
 
@@ -655,8 +815,27 @@ export default async function handler(req, res) {
                 if (data.dueDate !== undefined) {
                     editFields.dueDate = data.dueDate || null;
                 }
+                if (data.startTime !== undefined) {
+                    editFields.startTime = data.startTime || null;
+                }
+                if (data.endTime !== undefined) {
+                    editFields.endTime = data.endTime || null;
+                }
                 if (data.contextRef !== undefined) {
                     editFields.contextRef = data.contextRef;
+                }
+
+                // Item 10: If an issue_report in 'reported' is edited into a 'task' or 'vet_request', transition to 'todo' so assignee can start it
+                if (
+                    existing.status === 'reported' &&
+                    editFields.taskType &&
+                    editFields.taskType !== 'issue_report'
+                ) {
+                    editFields.status = editFields.taskType === 'external' ? 'in_progress' : 'todo';
+                    if (userRole !== 'caretaker') {
+                        editFields.reviewerEmail = userEmail;
+                        editFields.convertedBy = userEmail;
+                    }
                 }
 
                 const logEntry = {
@@ -688,16 +867,17 @@ export default async function handler(req, res) {
                 }
 
                 if (data.status) {
-                    const ALLOWED_NEXT_STATUS = {
-                        reported: 'todo',
-                        todo: 'in_progress',
-                        in_progress: 'review',
-                        review: 'done'
+                    const ALLOWED_NEXT_STATUSES = {
+                        reported: ['todo', 'in_progress'],
+                        todo: ['in_progress'],
+                        in_progress: ['review', 'todo'],
+                        review: ['done', 'in_progress']
                     };
 
-                    if (ALLOWED_NEXT_STATUS[existing.status] !== data.status) {
+                    const allowedTargets = ALLOWED_NEXT_STATUSES[existing.status] || [];
+                    if (!allowedTargets.includes(data.status)) {
                         return res.status(400).json({
-                            error: `Geçersiz durum geçişi: '${existing.status}' durumundan '${data.status}' durumuna doğrudan geçilemez. Geçiş sırası: reported -> todo -> in_progress -> review -> done.`
+                            error: `Geçersiz durum geçişi: '${existing.status}' durumundan '${data.status}' durumuna doğrudan geçilemez.`
                         });
                     }
                 }
@@ -707,16 +887,27 @@ export default async function handler(req, res) {
             const isTech = userRole === 'technician' || user.role === 'technician';
             const isAssigned = existing.assignedTo?.toLowerCase() === userEmail;
             const isReviewer = existing.reviewerEmail?.toLowerCase() === userEmail;
-            const isCreator = existing.createdBy?.toLowerCase() === userEmail;
+            const isCreator =
+                existing.createdBy?.toLowerCase() === userEmail ||
+                existing.convertedBy?.toLowerCase() === userEmail;
             const isTaskAssignedToVet =
                 existing.taskType === 'vet_request' ||
                 existing.assignedTo?.toLowerCase() === VET_EMAIL.toLowerCase();
 
-            // 1. Task assigned to Vet / Vet Request: Technicians have NO mutation rights!
+            // 1. Task assigned to Vet: Only Vet can execute ('in_progress', 'review', or revert to 'todo'),
+            //    while Reviewer/Creator (e.g. Technician who created it) can review ('done') or add notes.
             if (isTaskAssignedToVet && !isVet) {
-                return res.status(403).json({
-                    error: 'Veteriner Hekime atanmış olan görevler ve hekim klinik karar talepleri yalnızca Sorumlu Veteriner Hekim tarafından yürütülebilir ve güncellenebilir.'
-                });
+                const isReviewerActionOnReview =
+                    existing.status === 'review' &&
+                    (isReviewer || isCreator) &&
+                    (data.status === 'done' || data.status === 'in_progress');
+                const isAddNoteOnly = data.action === 'add_note' && !data.status;
+
+                if (!isReviewerActionOnReview && !isAddNoteOnly) {
+                    return res.status(403).json({
+                        error: 'Veteriner Hekime atanmış olan görevler yalnızca Sorumlu Veteriner Hekim tarafından başlatılabilir ve yürütülebilir.'
+                    });
+                }
             }
 
             // 2. Specific status transition checks for tasks
@@ -724,6 +915,14 @@ export default async function handler(req, res) {
                 if (!isAssigned && !isVet) {
                     return res.status(403).json({
                         error: 'Yalnızca göreve atanmış sorumlu personel veya Veteriner Hekim bu görevi işleme alabilir (başlatabilir).'
+                    });
+                }
+            }
+
+            if (data.status === 'todo' && existing.status === 'in_progress') {
+                if (!isAssigned && !isVet) {
+                    return res.status(403).json({
+                        error: 'Başlanan görevi yalnızca görevi yürüten personel veya Veteriner Hekim geri bırakabilir.'
                     });
                 }
             }
@@ -742,9 +941,9 @@ export default async function handler(req, res) {
                         error: 'Bakıcı/Temizlik personeli görevi doğrudan tamamlandı (Onay) durumuna alamaz.'
                     });
                 }
-                if (!isReviewer && !isVet) {
+                if (!isReviewer && !isCreator && !isVet) {
                     return res.status(403).json({
-                        error: 'Yalnızca Denetçi veya Sorumlu Veteriner Hekim görevi onaylayıp kapatabilir.'
+                        error: 'Yalnızca Kontrolcü (Görevi Oluşturan) veya Sorumlu Veteriner Hekim görevi onaylayıp kapatabilir.'
                     });
                 }
             }
@@ -785,6 +984,12 @@ export default async function handler(req, res) {
             const setFields = { updatedAt: now };
             if (data.status) {
                 setFields.status = data.status;
+                if (data.status === 'in_progress') {
+                    setFields.startedAt = existing.startedAt || now;
+                    setFields.incompleteAtDayEnd = false;
+                } else if (data.status === 'todo' && existing.status === 'in_progress') {
+                    setFields.startedAt = null;
+                }
             }
             if (data.priority) {
                 setFields.priority = data.priority;
@@ -797,13 +1002,17 @@ export default async function handler(req, res) {
             }
 
             const logEntry = {
-                action: data.action,
+                action: data.status === 'todo' && existing.status === 'in_progress' ? 'revert_to_todo' : data.action,
                 by: userEmail,
                 byName: user.name,
                 at: now,
                 note:
                     data.note ||
-                    (data.status ? `Durum '${data.status}' olarak güncellendi.` : 'Not eklendi.')
+                    (data.status === 'todo' && existing.status === 'in_progress'
+                        ? 'Başlanan görev yarıda bırakılarak yapılacaklara geri alındı.'
+                        : data.status
+                          ? `Durum '${data.status}' olarak güncellendi.`
+                          : 'Not eklendi.')
             };
 
             await sequaCol.updateOne(
@@ -836,12 +1045,14 @@ export default async function handler(req, res) {
             }
 
             const isVet = user.pulsusRole === 'vet' || user.role === 'admin' || user.role === 'vet';
-            const isCreator = existing.createdBy?.toLowerCase() === user.email.toLowerCase();
+            const isCreator =
+                existing.createdBy?.toLowerCase() === user.email.toLowerCase() ||
+                existing.convertedBy?.toLowerCase() === user.email.toLowerCase();
 
             if (!isVet) {
                 if (!isCreator) {
                     return res.status(403).json({
-                        error: 'Bu görevi yalnızca oluşturan personel veya Sorumlu Veteriner Hekim silebilir.'
+                        error: 'Verilen görevler yalnızca görevi oluşturan personel veya Sorumlu Veteriner Hekim tarafından silinebilir.'
                     });
                 }
 
@@ -852,18 +1063,22 @@ export default async function handler(req, res) {
                     Boolean(existing.lastRevisionNote) ||
                     (Array.isArray(existing.activityLog) &&
                         existing.activityLog.some(log => {
-                            if (['created', 'created_from_ritus_escalation'].includes(log.action)) {
+                            if (['created', 'created_from_ritus_escalation', 'convert_to_task'].includes(log.action)) {
                                 return false;
                             }
                             if (['request_revision', 'approve'].includes(log.action)) {
                                 return true;
                             }
-                            return log.by && log.by.toLowerCase() !== existing.createdBy?.toLowerCase();
+                            return (
+                                log.by &&
+                                log.by.toLowerCase() !== existing.createdBy?.toLowerCase() &&
+                                log.by.toLowerCase() !== existing.convertedBy?.toLowerCase()
+                            );
                         }));
 
                 if (!isStatusAllowed || hasReviewOrClinicalActivity) {
                     return res.status(403).json({
-                        error: 'İşleme alınmış, denetim veya klinik değerlendirme görmüş görevler yalnızca Veteriner Hekim veya Yönetici tarafından silinebilir.'
+                        error: 'İşleme alınmış, denetim veya klinik değerlendirme görmüş görevler yalnızca Veteriner Hekim tarafından silinebilir.'
                     });
                 }
             }

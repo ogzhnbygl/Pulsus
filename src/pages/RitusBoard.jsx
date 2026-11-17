@@ -3,6 +3,7 @@ import {
     CalendarClock,
     Plus,
     Lock,
+    Unlock,
     CheckSquare,
     Square,
     RotateCcw,
@@ -18,6 +19,7 @@ import {
     X,
     UserCheck,
     SlidersHorizontal,
+    ChevronRight,
     AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -35,7 +37,11 @@ import {
     getTodayIstanbulDateStr,
     getWeekDaysList
 } from '../utils/pulsusHelpers';
-import { CreateSequaModal, RitusActionModal } from '../components/TaskModals';
+import {
+    CreateSequaModal,
+    RitusActionModal,
+    CompletedTaskDetailModal
+} from '../components/TaskModals';
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function RitusBoard() {
@@ -73,6 +79,7 @@ export default function RitusBoard() {
     // Modals
     const [actionModal, setActionModal] = useState({ open: false, run: null, actionType: null });
     const [spawnSequaModal, setSpawnSequaModal] = useState({ open: false, run: null });
+    const [completedDetailRun, setCompletedDetailRun] = useState(null);
     const [templateModalOpen, setTemplateModalOpen] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState(null);
 
@@ -494,11 +501,36 @@ export default function RitusBoard() {
                                         </span>
                                     </div>
 
-                                    <div className="space-y-3">
+                                    <div className={col.key === 'done' ? 'space-y-2 max-h-[540px] overflow-y-auto pr-1' : 'space-y-3'}>
                                         {col.items.length === 0 ? (
                                             <div className="py-8 text-center text-[11px] text-slate-400">
                                                 Bu sütunda kart yok
                                             </div>
+                                        ) : col.key === 'done' ? (
+                                            /* Item 7: Compact name-only view for completed/approved Ritus tasks */
+                                            col.items.map(run => (
+                                                <button
+                                                    key={run._id}
+                                                    type="button"
+                                                    onClick={() => setCompletedDetailRun(run)}
+                                                    className="w-full text-left bg-white hover:bg-emerald-50/70 rounded-xl px-3 py-2.5 border border-emerald-200/80 hover:border-emerald-400 shadow-2xs transition-all flex items-center justify-between gap-2 group cursor-pointer"
+                                                    title="Detayları görüntülemek için tıklayın"
+                                                >
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <CheckCircle2
+                                                            size={14}
+                                                            className="text-emerald-600 shrink-0"
+                                                        />
+                                                        <span className="text-xs font-bold text-slate-800 group-hover:text-emerald-950 truncate">
+                                                            {run.title}
+                                                        </span>
+                                                    </div>
+                                                    <ChevronRight
+                                                        size={14}
+                                                        className="text-slate-400 group-hover:text-emerald-700 shrink-0"
+                                                    />
+                                                </button>
+                                            ))
                                         ) : (
                                             col.items.map(run => {
                                                 const freq =
@@ -516,12 +548,22 @@ export default function RitusBoard() {
                                                     String(
                                                         run.effectiveReviewer || ''
                                                     ).toLowerCase() === myEmail;
+                                                const isOffDay =
+                                                    run.scheduledDate &&
+                                                    run.scheduledDate !== todayStr;
+                                                const canStartThisRun =
+                                                    isMyRun &&
+                                                    (run.status === 'todo' ||
+                                                        run.status === 'needs_revision') &&
+                                                    (!isOffDay || isVet || run.offDayStartAllowed);
 
                                                 return (
                                                     <div
                                                         key={run._id}
                                                         className={`bg-white rounded-xl p-3.5 border shadow-2xs space-y-2.5 ${
-                                                            run.status === 'needs_revision'
+                                                            run.status === 'needs_revision' ||
+                                                            (run.revisionCount > 0 &&
+                                                                run.status === 'in_progress')
                                                                 ? 'border-2 border-amber-400'
                                                                 : run.status === 'escalated'
                                                                   ? 'border-2 border-rose-400'
@@ -545,7 +587,9 @@ export default function RitusBoard() {
                                                         </div>
 
                                                         {/* Repeated / Needs Revision Callout */}
-                                                        {run.status === 'needs_revision' && (
+                                                        {(run.status === 'needs_revision' ||
+                                                            (run.revisionCount > 0 &&
+                                                                run.status === 'in_progress')) && (
                                                             <div className="p-2 rounded-lg bg-amber-50 border border-amber-300 text-[11px] text-amber-950">
                                                                 <div className="font-extrabold flex items-center gap-1">
                                                                     <RotateCcw size={12} />
@@ -558,6 +602,14 @@ export default function RitusBoard() {
                                                                 )}
                                                             </div>
                                                         )}
+
+                                                        {run.incompleteAtDayEnd &&
+                                                            (run.status === 'todo' ||
+                                                                run.status === 'pending_review') && (
+                                                                <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-900">
+                                                                    ⏰ Gün Sonuna Kadar Tamamlanmadı (Yarıda Kaldı / Yapılmamış)
+                                                                </div>
+                                                            )}
 
                                                         {/* Escalated Callout */}
                                                         {run.status === 'escalated' && (
@@ -596,6 +648,13 @@ export default function RitusBoard() {
                                                             </div>
                                                         )}
 
+                                                        {run.offDayStartAllowed && isOffDay && (
+                                                            <div className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-800 flex items-center gap-1">
+                                                                <Unlock size={11} />
+                                                                Hekim Erken/Farklı Gün Başlatma İzni Verildi
+                                                            </div>
+                                                        )}
+
                                                         {/* Assignee & Reviewer Info */}
                                                         <div className="text-[11px] text-slate-600 space-y-0.5 pt-1 border-t border-slate-100">
                                                             <div>
@@ -623,16 +682,30 @@ export default function RitusBoard() {
                                                             </div>
                                                         </div>
 
-                                                        {/* Interactive Checklist */}
+                                                        {/* Item 5: Interactive Checklist — strictly locked until run.status === 'in_progress' */}
                                                         {run.checklist?.length > 0 && (
                                                             <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                                                                {(run.status === 'todo' ||
+                                                                    run.status ===
+                                                                        'needs_revision') && (
+                                                                    <div className="text-[10px] font-semibold text-amber-800 bg-amber-50/80 border border-amber-200 rounded-lg px-2 py-1 flex items-center gap-1">
+                                                                        <Lock
+                                                                            size={11}
+                                                                            className="shrink-0 text-amber-700"
+                                                                        />
+                                                                        <span>
+                                                                            Alt iş adımlarını yapmak için önce &quot;Başlat&quot; butonuna basınız.
+                                                                        </span>
+                                                                    </div>
+                                                                )}
                                                                 {run.checklist.map((item, idx) => (
                                                                     <button
                                                                         key={item.id ?? idx}
                                                                         type="button"
                                                                         disabled={
                                                                             !isMyRun ||
-                                                                            run.status === 'done'
+                                                                            run.status !==
+                                                                                'in_progress'
                                                                         }
                                                                         onClick={() =>
                                                                             handleRunPatch(
@@ -643,7 +716,7 @@ export default function RitusBoard() {
                                                                                 }
                                                                             )
                                                                         }
-                                                                        className="w-full flex items-center gap-2.5 text-left text-xs text-slate-700 hover:text-indigo-700 hover:bg-slate-100/80 rounded-lg min-h-[44px] py-2.5 px-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-75 disabled:cursor-not-allowed"
+                                                                        className="w-full flex items-center gap-2.5 text-left text-xs text-slate-700 hover:text-indigo-700 hover:bg-slate-100/80 rounded-lg min-h-[44px] py-2.5 px-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                                                                     >
                                                                         {item.done ? (
                                                                             <CheckSquare
@@ -672,43 +745,115 @@ export default function RitusBoard() {
 
                                                         {/* Action Buttons */}
                                                         <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                                                            {isMyRun && run.status === 'todo' && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        handleRunPatch(
-                                                                            run._id,
-                                                                            'start'
-                                                                        )
-                                                                    }
-                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700"
-                                                                >
-                                                                    Başlat
-                                                                </button>
-                                                            )}
-
                                                             {isMyRun &&
-                                                                (run.status === 'in_progress' ||
+                                                                (run.status === 'todo' ||
                                                                     run.status ===
-                                                                        'needs_revision') &&
-                                                                (Array.isArray(run.checklist) &&
-                                                                run.checklist.length > 0
-                                                                    ? run.checklist.every(
-                                                                          i => i.done
-                                                                      )
-                                                                    : true) && (
+                                                                        'needs_revision') && (
+                                                                    canStartThisRun ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                handleRunPatch(
+                                                                                    run._id,
+                                                                                    'start'
+                                                                                )
+                                                                            }
+                                                                            className="min-h-[40px] inline-flex items-center justify-center px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700"
+                                                                        >
+                                                                            {run.status ===
+                                                                            'needs_revision'
+                                                                                ? 'Tekrarı Başlat'
+                                                                                : 'Başlat'}
+                                                                        </button>
+                                                                    ) : (
+                                                                        <span
+                                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-[11px] font-semibold"
+                                                                            title="Farklı gündeki göreve yalnızca Veteriner Hekim izin verdiğinde başlanabilir"
+                                                                        >
+                                                                            <Lock size={12} />
+                                                                            Günü Değil (Hekim İzni Gerekli)
+                                                                        </span>
+                                                                    )
+                                                                )}
+
+                                                            {/* Item 6: Vet can grant/revoke off-day start permission */}
+                                                            {isVet &&
+                                                                isOffDay &&
+                                                                (run.status === 'todo' ||
+                                                                    run.status ===
+                                                                        'needs_revision') && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() =>
                                                                             handleRunPatch(
                                                                                 run._id,
-                                                                                'submit_for_review'
+                                                                                'toggle_off_day_permission',
+                                                                                {
+                                                                                    offDayStartAllowed:
+                                                                                        !run.offDayStartAllowed
+                                                                                }
                                                                             )
                                                                         }
-                                                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs"
+                                                                        className={`min-h-[38px] inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold ${
+                                                                            run.offDayStartAllowed
+                                                                                ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                                                                                : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                                                                        }`}
+                                                                        title="Personelin farklı gündeki bu göreve başlamasına izin ver / kaldır"
                                                                     >
-                                                                        Kontrole Gönder
+                                                                        {run.offDayStartAllowed ? (
+                                                                            <>
+                                                                                <Lock size={12} />
+                                                                                İzni Kaldır
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <Unlock size={12} />
+                                                                                Erken Başlatma İzni Ver
+                                                                            </>
+                                                                        )}
                                                                     </button>
+                                                                )}
+
+                                                            {isMyRun &&
+                                                                run.status === 'in_progress' && (
+                                                                    <>
+                                                                        {(Array.isArray(
+                                                                            run.checklist
+                                                                        ) &&
+                                                                        run.checklist.length > 0
+                                                                            ? run.checklist.every(
+                                                                                  i => i.done
+                                                                              )
+                                                                            : true) && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() =>
+                                                                                    handleRunPatch(
+                                                                                        run._id,
+                                                                                        'submit_for_review'
+                                                                                    )
+                                                                                }
+                                                                                className="min-h-[40px] inline-flex items-center justify-center px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs"
+                                                                            >
+                                                                                Kontrole Gönder
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                handleRunPatch(
+                                                                                    run._id,
+                                                                                    'revert_to_todo'
+                                                                                )
+                                                                            }
+                                                                            className="min-h-[40px] inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold"
+                                                                            title="Görevi yarıda bırak ve yapılacaklara geri al"
+                                                                        >
+                                                                            <RotateCcw size={12} />
+                                                                            Geri Bırak
+                                                                        </button>
+                                                                    </>
                                                                 )}
 
                                                             {/* Reviewer Actions on pending_review or escalated */}
@@ -728,7 +873,7 @@ export default function RitusBoard() {
                                                                                     }
                                                                                 )
                                                                             }
-                                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold"
+                                                                            className="min-h-[40px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold"
                                                                         >
                                                                             ✅ Onayla
                                                                         </button>
@@ -742,7 +887,7 @@ export default function RitusBoard() {
                                                                                         'request_revision'
                                                                                 })
                                                                             }
-                                                                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold"
+                                                                            className="min-h-[40px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold"
                                                                         >
                                                                             🔄 Tekrarlat
                                                                         </button>
@@ -758,7 +903,7 @@ export default function RitusBoard() {
                                                                                             'escalate_to_vet'
                                                                                     })
                                                                                 }
-                                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg bg-rose-600 text-white text-xs font-bold"
+                                                                                className="min-h-[40px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold"
                                                                             >
                                                                                 ⚠️ Hekime Bildir
                                                                             </button>
@@ -777,7 +922,7 @@ export default function RitusBoard() {
                                                                                 'vet_reassign'
                                                                         })
                                                                     }
-                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold"
+                                                                    className="min-h-[38px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold"
                                                                 >
                                                                     Yönlendir
                                                                 </button>
@@ -791,7 +936,7 @@ export default function RitusBoard() {
                                                                         run
                                                                     })
                                                                 }
-                                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold gap-1.5 ml-auto"
+                                                                className="min-h-[38px] inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold gap-1.5 ml-auto"
                                                                 title="Bu rutin görevden Sequa kaydı / arıza bildirimi doğur"
                                                             >
                                                                 <Link2 size={13} />
@@ -802,7 +947,7 @@ export default function RitusBoard() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleDeleteRun(run._id)}
-                                                                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700"
+                                                                    className="min-h-[38px] inline-flex items-center justify-center p-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700"
                                                                     title="Görev kartını sil"
                                                                 >
                                                                     <Trash2 size={14} />
@@ -1034,6 +1179,16 @@ export default function RitusBoard() {
                         }));
                     }
                 }}
+            />
+
+            <CompletedTaskDetailModal
+                isOpen={Boolean(completedDetailRun)}
+                onClose={() => setCompletedDetailRun(null)}
+                item={completedDetailRun}
+                mode="ritus"
+                members={members}
+                canDelete={isVet}
+                onDelete={handleDeleteRun}
             />
 
             <ConfirmModal
