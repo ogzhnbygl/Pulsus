@@ -1383,7 +1383,7 @@ export function CompletedTaskDetailModal({
                     {historyList.length > 0 && (
                         <div className="space-y-1.5">
                             <div className="font-bold text-slate-800">Görev Kronolojisi &amp; Denetim Kayıtları</div>
-                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                            <div className="space-y-1.5">
                                 {historyList.map((h, idx) => (
                                     <div
                                         key={idx}
