@@ -245,18 +245,34 @@ export function getTodayIstanbulDateStr(ref = new Date()) {
     }
 }
 
+export function formatFullTurkishDate(dateStr) {
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr || '';
+    const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const utcDay = dt.getUTCDay();
+    const dayIndex = utcDay === 0 ? 7 : utcDay;
+    const dayLabel = DAYS_OF_WEEK.find(x => x.value === dayIndex)?.label || '';
+    const monthLabel = MONTHS_TR.find(x => x.value === m)?.label || '';
+    return `${d} ${monthLabel} ${dayLabel}`;
+}
+
 export function getWeekDaysList(mondayStr) {
     if (!mondayStr || !/^\d{4}-\d{2}-\d{2}/.test(mondayStr)) return [];
     const days = [];
     for (let i = 0; i < 7; i++) {
         const dateStr = addDaysStr(mondayStr, i);
-        const dayInfo = DAYS_OF_WEEK[i] || { name: '', short: '' };
+        const dayInfo = DAYS_OF_WEEK[i] || { label: '', short: '' };
+        const [, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+        const monthInfo = MONTHS_TR.find(x => x.value === m) || { label: '', short: '' };
         days.push({
             dateStr,
             dayIndex: i + 1,
-            name: dayInfo.name,
+            name: dayInfo.label,
+            label: dayInfo.label,
             short: dayInfo.short,
-            dayNumber: Number(dateStr.slice(8, 10))
+            dayNumber: d,
+            monthName: monthInfo.label,
+            fullFormatted: `${d} ${monthInfo.label} ${dayInfo.label}`
         });
     }
     return days;

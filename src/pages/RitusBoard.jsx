@@ -34,6 +34,7 @@ import {
     formatScheduledBadge,
     formatWeekRangeLabel,
     formatTemplateScheduleSummary,
+    formatFullTurkishDate,
     getMemberName,
     getTodayIstanbulDateStr,
     getWeekDaysList
@@ -76,7 +77,7 @@ export default function RitusBoard() {
     // Filters
     const [filterAssignee, setFilterAssignee] = useState('ALL');
     const [filterFrequency, setFilterFrequency] = useState('ALL');
-    const [filterDay, setFilterDay] = useState('ALL');
+    const [filterDay, setFilterDay] = useState('today');
 
     // Modals
     const [actionModal, setActionModal] = useState({ open: false, run: null, actionType: null });
@@ -390,8 +391,11 @@ export default function RitusBoard() {
                             <div className="inline-flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200">
                                 <button
                                     type="button"
-                                    onClick={() => setSelectedWeekMode('current')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                                    onClick={() => {
+                                        setSelectedWeekMode('current');
+                                        setFilterDay('today');
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                                         selectedWeekMode === 'current'
                                             ? 'bg-indigo-600 text-white shadow-2xs'
                                             : 'text-slate-600 hover:text-slate-900'
@@ -402,8 +406,11 @@ export default function RitusBoard() {
                                 {isVet && (
                                     <button
                                         type="button"
-                                        onClick={() => setSelectedWeekMode('next')}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                                        onClick={() => {
+                                            setSelectedWeekMode('next');
+                                            setFilterDay('ALL');
+                                        }}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                                             selectedWeekMode === 'next'
                                                 ? 'bg-indigo-600 text-white shadow-2xs'
                                                 : 'text-slate-600 hover:text-slate-900'
@@ -446,13 +453,13 @@ export default function RitusBoard() {
                             <select
                                 value={filterDay}
                                 onChange={e => setFilterDay(e.target.value)}
-                                className="h-9 px-3 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 whitespace-nowrap"
+                                className="h-9 px-3 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 hover:bg-slate-100/80 whitespace-nowrap cursor-pointer transition-colors"
                             >
+                                <option value="today">Bugün ({formatFullTurkishDate(todayStr)})</option>
                                 <option value="ALL">Tüm Günler (Hafta)</option>
-                                <option value="today">Bugün ({todayStr})</option>
                                 {weekDays.map(d => (
                                     <option key={d.dateStr} value={d.dateStr}>
-                                        {d.name} ({d.dayNumber})
+                                        {d.fullFormatted}{d.dateStr === todayStr ? ' (Bugün)' : ''}
                                     </option>
                                 ))}
                             </select>
