@@ -20,7 +20,8 @@ import {
     UserCheck,
     SlidersHorizontal,
     ChevronRight,
-    AlertCircle
+    AlertCircle,
+    ListTodo
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -40,7 +41,8 @@ import {
 import {
     CreateSequaModal,
     RitusActionModal,
-    CompletedTaskDetailModal
+    CompletedTaskDetailModal,
+    PlannedTaskDetailModal
 } from '../components/TaskModals';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -80,6 +82,7 @@ export default function RitusBoard() {
     const [actionModal, setActionModal] = useState({ open: false, run: null, actionType: null });
     const [spawnSequaModal, setSpawnSequaModal] = useState({ open: false, run: null });
     const [completedDetailRun, setCompletedDetailRun] = useState(null);
+    const [todoDetailRun, setTodoDetailRun] = useState(null);
     const [templateModalOpen, setTemplateModalOpen] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState(null);
 
@@ -501,7 +504,7 @@ export default function RitusBoard() {
                                         </span>
                                     </div>
 
-                                    <div className={col.key === 'done' ? 'space-y-2 max-h-[540px] overflow-y-auto pr-1' : 'space-y-3'}>
+                                    <div className={(col.key === 'done' || col.key === 'todo') ? 'space-y-2 max-h-[540px] overflow-y-auto pr-1' : 'space-y-3'}>
                                         {col.items.length === 0 ? (
                                             <div className="py-8 text-center text-[11px] text-slate-400">
                                                 Bu sütunda kart yok
@@ -531,6 +534,46 @@ export default function RitusBoard() {
                                                     />
                                                 </button>
                                             ))
+                                        ) : col.key === 'todo' ? (
+                                            /* Compact stack view for planned (todo) Ritus tasks */
+                                            col.items.map(run => {
+                                                const isOffDay = run.scheduledDate && run.scheduledDate !== todayStr;
+                                                return (
+                                                    <button
+                                                        key={run._id}
+                                                        type="button"
+                                                        onClick={() => setTodoDetailRun(run)}
+                                                        className="w-full text-left bg-white hover:bg-indigo-50/70 rounded-xl px-3 py-2.5 border border-slate-200/90 hover:border-indigo-400 shadow-2xs transition-all flex items-center justify-between gap-2 group cursor-pointer"
+                                                        title="Görevi incelemek ve başlatmak için tıklayın"
+                                                    >
+                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                            <ListTodo
+                                                                size={14}
+                                                                className="text-indigo-500 shrink-0"
+                                                            />
+                                                            <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-950 truncate">
+                                                                {run.title}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 shrink-0">
+                                                            {run.scheduledTime && (
+                                                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                    {run.scheduledTime}
+                                                                </span>
+                                                            )}
+                                                            {isOffDay && !run.offDayStartAllowed && (
+                                                                <span className="text-[10px] text-amber-700 font-semibold" title="Günü Değil (Hekim İzni Gerekli)">
+                                                                    <Lock size={11} className="inline text-amber-600" />
+                                                                </span>
+                                                            )}
+                                                            <ChevronRight
+                                                                size={14}
+                                                                className="text-slate-400 group-hover:text-indigo-700 shrink-0"
+                                                            />
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })
                                         ) : (
                                             col.items.map(run => {
                                                 const freq =
@@ -1187,6 +1230,29 @@ export default function RitusBoard() {
                 item={completedDetailRun}
                 mode="ritus"
                 members={members}
+                canDelete={isVet}
+                onDelete={handleDeleteRun}
+            />
+
+            <PlannedTaskDetailModal
+                isOpen={Boolean(todoDetailRun)}
+                onClose={() => setTodoDetailRun(null)}
+                item={
+                    todoDetailRun
+                        ? (ritusState.runs || []).find(r => String(r._id) === String(todoDetailRun._id)) || todoDetailRun
+                        : null
+                }
+                mode="ritus"
+                members={members}
+                currentUser={user}
+                onStart={async id => {
+                    await handleRunPatch(id, 'start');
+                }}
+                onToggleOffDay={async (id, allowed) => {
+                    await handleRunPatch(id, 'toggle_off_day_permission', {
+                        offDayStartAllowed: allowed
+                    });
+                }}
                 canDelete={isVet}
                 onDelete={handleDeleteRun}
             />

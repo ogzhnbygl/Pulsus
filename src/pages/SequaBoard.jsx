@@ -14,6 +14,7 @@ import {
     AlertCircle,
     Clock,
     ChevronRight,
+    ListTodo,
     X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -30,7 +31,8 @@ import {
     CreateSequaModal,
     ConvertIssueModal,
     SequaRevisionModal,
-    CompletedTaskDetailModal
+    CompletedTaskDetailModal,
+    PlannedTaskDetailModal
 } from '../components/TaskModals';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -53,6 +55,7 @@ export default function SequaBoard() {
     const [convertModal, setConvertModal] = useState({ open: false, task: null });
     const [revisionModal, setRevisionModal] = useState({ open: false, task: null });
     const [completedDetailTask, setCompletedDetailTask] = useState(null);
+    const [todoDetailTask, setTodoDetailTask] = useState(null);
     const [notification, setNotification] = useState(null);
     const [confirmModal, setConfirmModal] = useState({
         isOpen: false,
@@ -429,7 +432,7 @@ export default function SequaBoard() {
                                 </span>
                             </div>
 
-                            <div className={col.key === 'done' ? 'space-y-2 max-h-[540px] overflow-y-auto pr-1' : 'space-y-3'}>
+                            <div className={(col.key === 'done' || col.key === 'todo') ? 'space-y-2 max-h-[540px] overflow-y-auto pr-1' : 'space-y-3'}>
                                 {col.items.length === 0 ? (
                                     <div className="py-8 text-center text-[11px] text-slate-400">
                                         Kart bulunmuyor
@@ -459,6 +462,53 @@ export default function SequaBoard() {
                                             />
                                         </button>
                                     ))
+                                ) : col.key === 'todo' ? (
+                                    /* Compact stack view for pending/todo Sequa tasks */
+                                    col.items.map(task => {
+                                        const prio =
+                                            SEQUA_PRIORITIES[task.priority] ||
+                                            SEQUA_PRIORITIES.medium;
+                                        return (
+                                            <button
+                                                key={task._id}
+                                                type="button"
+                                                onClick={() => setTodoDetailTask(task)}
+                                                className="w-full text-left bg-white hover:bg-indigo-50/70 rounded-xl px-3 py-2.5 border border-slate-200/90 hover:border-indigo-400 shadow-2xs transition-all flex items-center justify-between gap-2 group cursor-pointer"
+                                                title="Görevi incelemek ve başlatmak için tıklayın"
+                                            >
+                                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                    <ListTodo
+                                                        size={14}
+                                                        className="text-indigo-500 shrink-0"
+                                                    />
+                                                    <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-950 truncate">
+                                                        {task.title}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    {task.dueDate && (
+                                                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                            {task.dueDate.slice(5)}
+                                                        </span>
+                                                    )}
+                                                    <span
+                                                        className={`w-2 h-2 rounded-full ${
+                                                            task.priority === 'urgent'
+                                                                ? 'bg-rose-500'
+                                                                : task.priority === 'high'
+                                                                  ? 'bg-amber-500'
+                                                                  : 'bg-slate-400'
+                                                        }`}
+                                                        title={prio.label}
+                                                    />
+                                                    <ChevronRight
+                                                        size={14}
+                                                        className="text-slate-400 group-hover:text-indigo-700 shrink-0"
+                                                    />
+                                                </div>
+                                            </button>
+                                        );
+                                    })
                                 ) : (
                                     col.items.map(task => {
                                         const prio =
@@ -883,6 +933,39 @@ export default function SequaBoard() {
                 mode="sequa"
                 members={members}
                 canDelete={isVet}
+                onDelete={handleDeleteTask}
+            />
+
+            <PlannedTaskDetailModal
+                isOpen={Boolean(todoDetailTask)}
+                onClose={() => setTodoDetailTask(null)}
+                item={
+                    todoDetailTask
+                        ? (tasks || []).find(t => String(t._id) === String(todoDetailTask._id)) || todoDetailTask
+                        : null
+                }
+                mode="sequa"
+                members={members}
+                currentUser={user}
+                onStart={async id => {
+                    await handlePatchTask(id, 'start');
+                }}
+                canEdit={
+                    todoDetailTask &&
+                    (isVet ||
+                        (String(todoDetailTask.createdBy || '').toLowerCase() === userEmail &&
+                            ['reported', 'todo'].includes(todoDetailTask.status)))
+                }
+                onEdit={task => {
+                    setEditingTask(task);
+                    setCreateModalOpen(true);
+                }}
+                canDelete={
+                    todoDetailTask &&
+                    (isVet ||
+                        (String(todoDetailTask.createdBy || '').toLowerCase() === userEmail &&
+                            ['reported', 'todo'].includes(todoDetailTask.status)))
+                }
                 onDelete={handleDeleteTask}
             />
 

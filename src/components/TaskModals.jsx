@@ -12,7 +12,13 @@ import {
     CheckCircle2,
     Clock,
     CheckSquare,
-    Trash2
+    Trash2,
+    ListTodo,
+    Play,
+    Lock,
+    Unlock,
+    Square,
+    Edit3
 } from 'lucide-react';
 import {
     VET_EMAIL,
@@ -1426,6 +1432,319 @@ export function CompletedTaskDetailModal({
                     >
                         Kapat
                     </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Detail & Action Inspection Modal for Planned ('todo') Ritus Runs and Sequa Tasks
+ * Allows inspecting the routine/task before starting, reviewing locked checklists,
+ * and triggering "Başlat" (start) or admin/vet actions without cluttering the board.
+ */
+export function PlannedTaskDetailModal({
+    isOpen,
+    onClose,
+    item,
+    mode = 'ritus', // 'ritus' | 'sequa'
+    members = DEFAULT_STAFF_DIRECTORY,
+    currentUser = null,
+    onStart = null,
+    onToggleOffDay = null, // for Ritus (runId, allowed)
+    canDelete = false,
+    onDelete = null,
+    canEdit = false,
+    onEdit = null
+}) {
+    if (!isOpen || !item) return null;
+
+    const staffList = members.length > 0 ? members : DEFAULT_STAFF_DIRECTORY;
+    const isRitus = mode === 'ritus';
+    const todayStr = getTodayIstanbulDateStr();
+
+    const isVet = currentUser?.pulsusRole === 'vet' || currentUser?.role === 'admin';
+    const myEmail = String(currentUser?.email || '').toLowerCase();
+
+    const freq = isRitus ? RITUS_FREQUENCIES[item.frequency] || RITUS_FREQUENCIES.weekly : null;
+    const cat = isRitus ? RITUS_CATEGORIES[item.category] || RITUS_CATEGORIES.other : null;
+    const prio = !isRitus ? SEQUA_PRIORITIES[item.priority] || SEQUA_PRIORITIES.medium : null;
+    const tType = !isRitus ? SEQUA_TASK_TYPES[item.taskType] || SEQUA_TASK_TYPES.task : null;
+
+    const isOffDay = isRitus && Boolean(item.scheduledDate && item.scheduledDate !== todayStr);
+    const isMyItem = isRitus
+        ? String(item.effectiveAssignee || '').toLowerCase() === myEmail || isVet
+        : item.taskType === 'vet_request' || String(item.assignedTo || '').toLowerCase() === VET_EMAIL.toLowerCase()
+          ? isVet
+          : String(item.assignedTo || '').toLowerCase() === myEmail || isVet;
+
+    const canStart = isRitus
+        ? isMyItem && (!isOffDay || isVet || item.offDayStartAllowed)
+        : isMyItem;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+                <div className="shrink-0 px-5 py-3.5 bg-gradient-to-r from-slate-800 to-indigo-900 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <ListTodo size={18} className="text-indigo-300 shrink-0" />
+                        <div>
+                            <h3 className="text-sm sm:text-base font-bold">
+                                {isRitus ? 'Planlanan Rutin Görev Detayı' : 'Bekleyen Görev Detayı'}
+                            </h3>
+                            <p className="text-[11px] text-indigo-200">
+                                {isRitus
+                                    ? 'Yapılacak rutin görev kartı ve başlatma kontrolü'
+                                    : 'Yapılacak Sequa görev kartı ve detayları'}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+                    {/* Top Badges */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {isRitus ? (
+                                <>
+                                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${freq?.badge || ''}`}>
+                                        {freq?.label}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${cat?.color || ''}`}>
+                                        {cat?.label}
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${tType?.badge || ''}`}>
+                                        {tType?.label}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-[11px] border ${prio?.badge || ''}`}>
+                                        {prio?.label}
+                                    </span>
+                                </>
+                            )}
+                            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300">
+                                ⏳ Yapılacak (Planlandı)
+                            </span>
+                        </div>
+
+                        {isRitus ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                <Clock size={12} className="text-indigo-600" />
+                                {formatScheduledBadge(item.scheduledDate, item.scheduledTime)}
+                            </span>
+                        ) : (
+                            (item.dueDate || item.startTime || item.endTime) && (
+                                <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                    <Clock size={12} className="text-rose-600" />
+                                    {formatSequaDateTimeBadge(item.dueDate, item.startTime, item.endTime)}
+                                </span>
+                            )
+                        )}
+                    </div>
+
+                    {/* Title & Description */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                        <h4 className="text-sm font-extrabold text-slate-900">{item.title}</h4>
+                        {item.description && (
+                            <p className="text-xs text-slate-600 whitespace-pre-line">{item.description}</p>
+                        )}
+                    </div>
+
+                    {/* Context / External Info */}
+                    {item.contextRef?.label && (
+                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-700">
+                            📍 Konum / Birim: {item.contextRef.label}
+                        </div>
+                    )}
+
+                    {item.externalUnit && (
+                        <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 font-semibold text-purple-900">
+                            🏛️ Dış Birim: {item.externalUnit}
+                            {item.externalTicketNo && (
+                                <span className="block text-[11px] text-purple-700 mt-0.5">
+                                    Evrak / İş Emri No: {item.externalTicketNo}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Assignment & Roles */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                        {!isRitus && (
+                            <div>
+                                <span className="text-slate-500 block text-[11px]">Oluşturan:</span>
+                                <strong className="text-slate-900">
+                                    {item.createdByName || getMemberName(item.createdBy, staffList)}
+                                </strong>
+                            </div>
+                        )}
+                        <div>
+                            <span className="text-slate-500 block text-[11px]">Görevi Yapan (Sorumlu):</span>
+                            <strong className="text-slate-900">
+                                {getMemberName(isRitus ? item.effectiveAssignee : item.assignedTo, staffList)}
+                            </strong>
+                        </div>
+                        <div>
+                            <span className="text-slate-500 block text-[11px]">Kontrolcü (Denetçi):</span>
+                            <strong className="text-slate-900">
+                                {getMemberName(isRitus ? item.effectiveReviewer : item.reviewerEmail, staffList)}
+                            </strong>
+                        </div>
+                    </div>
+
+                    {/* Circa Leave / Backup Handover Badges */}
+                    {isRitus && item.assignmentStatus === 'backup' && (
+                        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                            🏖️ <strong>Circa İzin Devri:</strong> Asil ({getMemberName(item.primaryAssignee, staffList)}) izinli ➡️ Görev yedek personele devredildi: <strong>{getMemberName(item.effectiveAssignee, staffList)}</strong>
+                        </div>
+                    )}
+
+                    {/* Off-day Notice for Ritus */}
+                    {isOffDay && (
+                        item.offDayStartAllowed ? (
+                            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-900 flex items-start gap-2">
+                                <Unlock size={15} className="text-emerald-700 shrink-0 mt-0.5" />
+                                <div>
+                                    🟢 <strong>Hekim İzni Aktif:</strong> Sorumlu Veteriner Hekim bu görevin bugün erken başlatılmasına onay verdi.
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-900 flex items-start gap-2">
+                                <Lock size={15} className="text-amber-700 shrink-0 mt-0.5" />
+                                <div>
+                                    ⚠️ <strong>Planlanan Tarih Farklı ({item.scheduledDate}):</strong> Farklı veya ileri bir gündeki göreve sadece Sorumlu Veteriner Hekim izin verirse başlanabilir.
+                                </div>
+                            </div>
+                        )
+                    )}
+
+                    {/* Incomplete at day end Notice */}
+                    {item.incompleteAtDayEnd && (
+                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-900">
+                            ⏰ Gün Sonuna Kadar Tamamlanmadı (Yarıda Kaldığı İçin Tekrar Yapılacak Olarak Atandı)
+                        </div>
+                    )}
+
+                    {/* Checklist Preview for Ritus */}
+                    {isRitus && Array.isArray(item.checklist) && item.checklist.length > 0 && (
+                        <div className="space-y-2">
+                            <div className="font-bold text-slate-800 flex items-center justify-between">
+                                <span>Alt İş Paketleri ({item.checklist.length} Madde)</span>
+                                <span className="text-[11px] text-slate-500 font-normal">Kilitli (Başlatılınca Aktifleşir)</span>
+                            </div>
+                            <div className="space-y-1">
+                                {item.checklist.map((step, idx) => (
+                                    <div
+                                        key={step.id ?? idx}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-xs opacity-85"
+                                    >
+                                        <Square size={14} className="text-slate-400 shrink-0" />
+                                        <span>{step.text}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-[11px] text-slate-500 italic">
+                                * Görevi &quot;Başlat&quot; butonuna bastığınızda görev &quot;Yapılıyor&quot; sütununa taşınacak ve maddeler işaretlenebilir olacaktır.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer Actions */}
+                <div className="shrink-0 px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                        {canDelete && onDelete && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onClose();
+                                    onDelete(item._id);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold cursor-pointer"
+                            >
+                                <Trash2 size={13} />
+                                Sil
+                            </button>
+                        )}
+                        {!isRitus && canEdit && onEdit && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onClose();
+                                    onEdit(item);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold cursor-pointer"
+                            >
+                                <Edit3 size={13} />
+                                Düzenle
+                            </button>
+                        )}
+                        {isRitus && isVet && isOffDay && onToggleOffDay && (
+                            <button
+                                type="button"
+                                onClick={() => onToggleOffDay(item._id, !item.offDayStartAllowed)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer ${
+                                    item.offDayStartAllowed
+                                        ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                                        : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                                }`}
+                            >
+                                {item.offDayStartAllowed ? (
+                                    <>
+                                        <Lock size={12} />
+                                        İzni Kaldır
+                                    </>
+                                ) : (
+                                    <>
+                                        <Unlock size={12} />
+                                        Erken Başlatma İzni Ver
+                                    </>
+                                )}
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer"
+                        >
+                            Kapat
+                        </button>
+
+                        {canStart ? (
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    if (onStart) {
+                                        await onStart(item._id);
+                                    }
+                                    onClose();
+                                }}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
+                            >
+                                <Play size={13} />
+                                Görevi Başlat
+                            </button>
+                        ) : (
+                            isOffDay && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-xs font-semibold">
+                                    <Lock size={12} />
+                                    Günü Değil (Hekim İzni Gerekli)
+                                </span>
+                            )
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
